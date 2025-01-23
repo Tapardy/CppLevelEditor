@@ -1,5 +1,4 @@
-#ifndef __INPUTS_H__
-#define __INPUTS_H__
+#pragma once
 
 #include <raylib.h>
 
@@ -15,5 +14,3 @@ private:
     static bool IsControllerActive(int gamepadIndex);
     static int _gamepadIndex;
 };
-
-#endif

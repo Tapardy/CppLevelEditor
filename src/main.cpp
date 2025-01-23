@@ -1,6 +1,6 @@
 #include <raylib.h>
-#include "Inputs/Inputs.h"
 #include <iostream>
+#include "Inputs/Inputs.h"
 
 int main()
 {
