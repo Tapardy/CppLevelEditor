@@ -25,6 +25,8 @@ int main()
         {{4, 8, 4}, {0, 0, 0}, {2, 2, 2}, GREEN},
     };
 
+    Object::Cube *selectedCube;
+
     SetTargetFPS(60);
 
     while (!WindowShouldClose())
@@ -46,12 +48,31 @@ int main()
                 for (auto &&cube : cubes)
                 {
                     collision = GetRayCollisionBox(ray, cube.GetBoundingBox());
+                    if (collision.hit)
+                    {
+                        selectedCube = &cube;
+                        // Break so you don't add another
+                        break;
+                    }
                 }
             }
             else
             {
+                selectedCube = nullptr;
                 collision.hit = false;
             }
+        }
+
+        if (selectedCube != nullptr)
+        {
+            Vector2 mouseDelta = GetMouseDelta();
+            Vector2 scrollDirection = GetMouseWheelMoveV();
+
+            selectedCube->position.x += mouseDelta.x * 0.05f;
+            selectedCube->position.z += mouseDelta.y * 0.05f;
+
+            // Not the best as you do easily move the mouse, but setting an if doesn't work, as theres intervals between scrolling
+            selectedCube->position.y += scrollDirection.y * 0.1f;
         }
 
         // Indenting for readability
@@ -59,10 +80,7 @@ int main()
         {
             for (auto &&cube : cubes)
             {
-                if (collision.hit)
-                    cube.color = ORANGE;
-                else
-                    cube.color = RED;
+                cube.color = (&cube == selectedCube) ? ORANGE : RED;
             }
 
             ClearBackground(RAYWHITE);
