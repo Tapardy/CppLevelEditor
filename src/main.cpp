@@ -1,6 +1,7 @@
 #include <raylib.h>
 #include <iostream>
 #include "Inputs/Inputs.h"
+#include "LevelEditor/Objects.h"
 
 int main()
 {
@@ -16,26 +17,65 @@ int main()
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    Vector3 cubePosition = {0, 0, 0};
+    Ray ray = {0};
+    RayCollision collision = {0};
 
-    DisableCursor();
+    Object::Cube cubes[2] = {
+        {{0, 0, 0}, {0, 0, 0}, {2, 2, 2}, RED},
+        {{4, 8, 4}, {0, 0, 0}, {2, 2, 2}, GREEN},
+    };
 
     SetTargetFPS(60);
 
     while (!WindowShouldClose())
     {
-        UpdateCamera(&camera, CAMERA_FREE);
+        // Simulate a godot cam and make it much easier for me to move objects
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        {
+            UpdateCamera(&camera, CAMERA_FREE);
+            DisableCursor();
+        }
+        else if (IsCursorHidden())
+            EnableCursor();
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            if (!collision.hit)
+            {
+                ray = GetScreenToWorldRay(GetMousePosition(), camera);
+                for (auto &&cube : cubes)
+                {
+                    collision = GetRayCollisionBox(ray, cube.GetBoundingBox());
+                }
+            }
+            else
+            {
+                collision.hit = false;
+            }
+        }
 
         // Indenting for readability
         BeginDrawing();
         {
+            for (auto &&cube : cubes)
+            {
+                if (collision.hit)
+                    cube.color = ORANGE;
+                else
+                    cube.color = RED;
+            }
+
             ClearBackground(RAYWHITE);
+
             if (InputSystem::Jump())
                 std::cout << "Jumped";
             BeginMode3D(camera);
             {
+                for (auto &&cube : cubes)
+                {
 
-                DrawCube(cubePosition, 10, 10, 10, RED);
+                    DrawCubeV(cube.position, cube.size, cube.color);
+                }
             }
             EndMode3D();
         }
