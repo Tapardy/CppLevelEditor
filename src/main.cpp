@@ -2,6 +2,7 @@
 #include <iostream>
 #include "Inputs/Inputs.h"
 #include "LevelEditor/Objects.h"
+#include "SaveLevel/Save.h"
 
 int main()
 {
@@ -25,12 +26,24 @@ int main()
         {{4, 8, 4}, {0, 0, 0}, {2, 2, 2}, GREEN},
     };
 
+    int cubeCount = 0;
+    cubeCount = sizeof(cubes) / sizeof(cubes[0]);
+
     Object::Cube *selectedCube;
 
     SetTargetFPS(60);
 
     while (!WindowShouldClose())
     {
+        if (IsKeyPressed(KEY_F5))
+        {
+            SaveLevel(cubes, cubeCount);
+        }
+        if (IsKeyPressed(KEY_F6))
+        {
+            LoadLevel(cubes, cubeCount);
+        }
+
         // Simulate a godot cam and make it much easier for me to move objects
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
         {
@@ -72,7 +85,7 @@ int main()
             selectedCube->position.z += mouseDelta.y * 0.05f;
 
             // Not the best as you do easily move the mouse, but setting an if doesn't work, as theres intervals between scrolling
-            selectedCube->position.y += scrollDirection.y * 0.1f;
+            selectedCube->position.y += scrollDirection.y * 0.2f;
         }
 
         // Indenting for readability
@@ -80,7 +93,7 @@ int main()
         {
             for (auto &&cube : cubes)
             {
-                cube.color = (&cube == selectedCube) ? ORANGE : RED;
+                cube.color = (&cube == selectedCube) ? GREEN : RED;
             }
 
             ClearBackground(RAYWHITE);
