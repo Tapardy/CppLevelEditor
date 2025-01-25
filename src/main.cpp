@@ -95,7 +95,7 @@ int main()
             }
 
             ClearBackground(RAYWHITE);
-            ObjectUI::RenderCubeGUI(cubes, *selectedCube);
+            ObjectUI::RenderCubeGUI(cubes, selectedCube);
 
             BeginMode3D(camera);
             {

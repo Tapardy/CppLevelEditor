@@ -1,8 +1,9 @@
 #pragma once
 #include "objects.h"
 #include "objectsUI.h"
+#include "../typedef.h"
 
 namespace ObjectHandling
 {
-    Object::Cube SpawnCube(std::vector<Object::Cube> &cubes, Object::Cube newCube);
+    Object::Cube SpawnCube(vCubes &cubes, Object::Cube newCube);
 }
