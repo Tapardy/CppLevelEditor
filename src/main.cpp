@@ -1,7 +1,11 @@
+#define RAYGUI_IMPLEMENTATION
 #include <raylib.h>
+#include <raygui.h>
 #include <iostream>
+#include <vector>
 #include "Inputs/Inputs.h"
 #include "LevelEditor/Objects.h"
+#include "LevelEditor/ObjectsUI.h"
 #include "SaveLevel/Save.h"
 
 int main()
@@ -21,15 +25,11 @@ int main()
     Ray ray = {0};
     RayCollision collision = {0};
 
-    Object::Cube cubes[2] = {
-        {{0, 0, 0}, {0, 0, 0}, {2, 2, 2}, RED},
-        {{4, 8, 4}, {0, 0, 0}, {2, 2, 2}, GREEN},
-    };
+    // Apparently the vectors better than a list, so here we are
+    std::vector<Object::Cube> cubes;
+    cubes.push_back(Object::Cube::CreateCube({0, 0, 0}, {0, 0, 0}, {2, 2, 2}, RED));
 
-    int cubeCount = 0;
-    cubeCount = sizeof(cubes) / sizeof(cubes[0]);
-
-    Object::Cube *selectedCube;
+    Object::Cube *selectedCube = nullptr;
 
     SetTargetFPS(60);
 
@@ -37,11 +37,11 @@ int main()
     {
         if (IsKeyPressed(KEY_F5))
         {
-            SaveLevel(cubes, cubeCount);
+            SaveLevel(&cubes);
         }
         if (IsKeyPressed(KEY_F6))
         {
-            LoadLevel(cubes, cubeCount);
+            LoadLevel(&cubes);
         }
 
         // Simulate a godot cam and make it much easier for me to move objects
@@ -98,13 +98,20 @@ int main()
 
             ClearBackground(RAYWHITE);
 
-            if (InputSystem::Jump())
-                std::cout << "Jumped";
+            if (GuiButton({200, 200, 200, 100}, "Spawn Cube"))
+            {
+                ObjectUI::SpawnCube(cubes);
+            }
+
             BeginMode3D(camera);
             {
                 for (auto &&cube : cubes)
                 {
 
+                    DrawCubeV(cube.position, cube.size, cube.color);
+                }
+                for (auto &&cube : cubes)
+                {
                     DrawCubeV(cube.position, cube.size, cube.color);
                 }
             }

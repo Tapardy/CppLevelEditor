@@ -1,5 +1,6 @@
 #pragma once
 #include "../LevelEditor/Objects.h"
+#include <vector>
 
-void SaveLevel(Object::Cube *cubes, int cubeCount);
-void LoadLevel(Object::Cube *cubes, int &cubeCount);
+bool SaveLevel(std::vector<Object::Cube> *cubes);
+void LoadLevel(std::vector<Object::Cube> *cubes);

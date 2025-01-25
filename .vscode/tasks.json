@@ -16,8 +16,8 @@
                 "args": [
                     "RAYLIB_PATH=C:/raylib/raylib",
                     "PROJECT_NAME=${fileBasenameNoExtension}",
-                    "OBJS = src/*.cpp src/Inputs/*.cpp src/SaveLevel/*.cpp",
-                    "BUILD_MODE=DEBUG"
+                    "OBJS = src/*.cpp src/Inputs/*.cpp src/SaveLevel/*.cpp src/LevelEditor/*.cpp",
+                    "BUILD_MODE=DEBUG",
                 ]
             },
             "osx": {

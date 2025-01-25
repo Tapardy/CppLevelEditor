@@ -1,21 +1,23 @@
 #include "src/LevelEditor/Objects.h"
 #include <iostream>
+#include <vector>
+#include "Save.h"
 
-bool SaveLevel(Object::Cube *cubes, int cubeCount)
+bool SaveLevel(std::vector<Object::Cube> *cubes)
 {
     MakeDirectory("Levels");
 
-    return SaveFileData("Levels/level.dat", cubes, cubeCount * sizeof(Object::Cube));
+    return SaveFileData("Levels/level.dat", cubes->data(), cubes->size() * sizeof(Object::Cube));
 }
 
-void LoadLevel(Object::Cube *cubes, int &cubeCount)
+void LoadLevel(std::vector<Object::Cube> *cubes)
 {
     int dataSize;
     unsigned char *data = LoadFileData("Levels/level.dat", &dataSize);
 
-    cubeCount = dataSize / sizeof(Object::Cube);
+    cubes->resize(dataSize / sizeof(Object::Cube));
 
-    memcpy(cubes, data, dataSize);
+    memcpy(cubes->data(), data, dataSize);
 
     UnloadFileData(data);
 }

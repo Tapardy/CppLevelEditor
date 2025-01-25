@@ -35,6 +35,11 @@ namespace Object
         Vector3 size;
         Color color;
         static constexpr ObjectType tag = CUBE;
+
+        static Cube CreateCube(Vector3 position, Vector3 rotation, Vector3 size, Color color)
+        {
+            return Cube{position, rotation, size, color};
+        }
         // Simple return statmement so I never have to write this again
         // Could separate this into a diff class, so the dynamic one can be used, not sure if that's the best idea
         BoundingBox GetBoundingBox() const
