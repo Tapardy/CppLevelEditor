@@ -1,4 +1,4 @@
-#include "Inputs.h"
+#include "inputs.h"
 #include <raylib.h>
 #include <raymath.h>
 

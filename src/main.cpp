@@ -1,12 +1,11 @@
-#define RAYGUI_IMPLEMENTATION
 #include <raylib.h>
-#include <raygui.h>
 #include <iostream>
 #include <vector>
-#include "Inputs/Inputs.h"
-#include "LevelEditor/Objects.h"
-#include "LevelEditor/ObjectsUI.h"
-#include "SaveLevel/Save.h"
+#include "typedef.h"
+#include "Inputs/inputs.h"
+#include "LevelEditor/objects.h"
+#include "LevelEditor/objectsUI.h"
+#include "SaveLevel/save.h"
 
 int main()
 {
@@ -26,8 +25,7 @@ int main()
     RayCollision collision = {0};
 
     // Apparently the vectors better than a list, so here we are
-    std::vector<Object::Cube> cubes;
-    cubes.push_back(Object::Cube::CreateCube({0, 0, 0}, {0, 0, 0}, {2, 2, 2}, RED));
+    vCubes cubes;
 
     Object::Cube *selectedCube = nullptr;
 
@@ -97,19 +95,10 @@ int main()
             }
 
             ClearBackground(RAYWHITE);
-
-            if (GuiButton({200, 200, 200, 100}, "Spawn Cube"))
-            {
-                ObjectUI::SpawnCube(cubes);
-            }
+            ObjectUI::RenderCubeGUI(cubes, *selectedCube);
 
             BeginMode3D(camera);
             {
-                for (auto &&cube : cubes)
-                {
-
-                    DrawCubeV(cube.position, cube.size, cube.color);
-                }
                 for (auto &&cube : cubes)
                 {
                     DrawCubeV(cube.position, cube.size, cube.color);

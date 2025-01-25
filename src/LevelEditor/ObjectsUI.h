@@ -1,8 +1,10 @@
 #pragma once
 #include <vector>
-#include "Objects.h"
+#include "objects.h"
+#include "src/typedef.h"
 
 namespace ObjectUI
 {
-    Object::Cube SpawnCube(std::vector<Object::Cube> &cubes);
+    Object::Cube SpawnCube(vCubes &cubes, Object::Cube newCube);
+    void RenderCubeGUI(vCubes &cubes, Object::Cube &selectedCube);
 }
