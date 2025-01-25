@@ -3,19 +3,9 @@
 #include <raygui.h>
 #include "objectsUI.h"
 #include "objects.h"
+#include "objectHandling.h"
 #include <vector>
 #include <string>
-
-Object::Cube ObjectUI::SpawnCube(std::vector<Object::Cube> &cubes, Object::Cube newCube)
-{
-    cubes.push_back(Object::Cube::CreateCube(
-        newCube.position,
-        newCube.rotation,
-        newCube.size,
-        newCube.color));
-
-    return cubes.back();
-}
 
 void ObjectUI::RenderCubeGUI(std::vector<Object::Cube> &cubes, Object::Cube &selectedCube)
 {
@@ -53,6 +43,6 @@ void ObjectUI::RenderCubeGUI(std::vector<Object::Cube> &cubes, Object::Cube &sel
         Vector3 position = {posX, posY, posZ};
 
         Object::Cube newCube = {position, {0, 0, 0}, {2, 2, 2}, RED};
-        SpawnCube(cubes, newCube);
+        ObjectHandling::SpawnCube(cubes, newCube);
     }
 }
