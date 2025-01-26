@@ -2,15 +2,16 @@
 #include <iostream>
 #include <vector>
 #include "save.h"
+#include "../typedef.h"
 
-bool SaveLevel(std::vector<Object::Cube> *cubes)
+bool SaveLevel(vCubes *cubes)
 {
     MakeDirectory("Levels");
 
     return SaveFileData("Levels/level.dat", cubes->data(), cubes->size() * sizeof(Object::Cube));
 }
 
-void LoadLevel(std::vector<Object::Cube> *cubes)
+void LoadLevel(vCubes *cubes)
 {
     int dataSize;
     unsigned char *data = LoadFileData("Levels/level.dat", &dataSize);
