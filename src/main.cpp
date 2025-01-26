@@ -93,11 +93,6 @@ int main()
         // Indenting for readability
         BeginDrawing();
         {
-            for (auto &&cube : cubes)
-            {
-                cube.color = (&cube == selectedCube) ? GREEN : RED;
-            }
-
             ClearBackground(RAYWHITE);
 
             rlImGuiBegin();
@@ -109,6 +104,11 @@ int main()
                 for (auto &&cube : cubes)
                 {
                     DrawCubeV(cube.position, cube.size, cube.color);
+                    if (&cube == selectedCube)
+                    {
+                        // Draw wireframe for now, will be replaced with gizmos later
+                        DrawCubeWiresV(cube.position, Vector3{cube.size.x + 0.2f, cube.size.y + 0.2f, cube.size.z + 0.2f}, BLACK);
+                    }
                 }
             }
             EndMode3D();
