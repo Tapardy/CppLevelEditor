@@ -6,6 +6,8 @@
 #include "LevelEditor/objects.h"
 #include "LevelEditor/objectsUI.h"
 #include "SaveLevel/save.h"
+#include "../imgui/imgui.h"
+#include "../imgui/rlImGui.h"
 
 int main()
 {
@@ -13,6 +15,8 @@ int main()
     const int screenHeight = 1080;
 
     InitWindow(screenWidth, screenHeight, "3D Game raylib");
+
+    rlImGuiSetup(true);
 
     Camera3D camera = {0};
     camera.position = Vector3{10.0f, 10.0f, 10.0f};
@@ -95,7 +99,10 @@ int main()
             }
 
             ClearBackground(RAYWHITE);
+
+            rlImGuiBegin();
             ObjectUI::RenderCubeGUI(cubes, selectedCube);
+            rlImGuiEnd();
 
             BeginMode3D(camera);
             {

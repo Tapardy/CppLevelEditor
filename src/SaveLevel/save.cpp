@@ -2,7 +2,6 @@
 #include <iostream>
 #include <vector>
 #include "save.h"
-#include "../typedef.h"
 
 bool SaveLevel(vCubes *cubes)
 {
@@ -17,7 +16,6 @@ void LoadLevel(vCubes *cubes)
     unsigned char *data = LoadFileData("Levels/level.dat", &dataSize);
 
     cubes->resize(dataSize / sizeof(Object::Cube));
-
     memcpy(cubes->data(), data, dataSize);
 
     UnloadFileData(data);

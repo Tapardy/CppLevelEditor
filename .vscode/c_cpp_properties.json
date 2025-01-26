@@ -6,7 +6,8 @@
                 "C:/raylib/raylib/src/**",
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/src/Inputs/**",
-                "${workspaceFolder}/src/LevelEditor"
+                "${workspaceFolder}/src/LevelEditor",
+                "${workspaceFolder}/imgui/**"
             ],
             "defines": [
                 "_DEBUG",
