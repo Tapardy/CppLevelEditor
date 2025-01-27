@@ -55,7 +55,10 @@ int main()
         else if (IsCursorHidden())
             EnableCursor();
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        //  Makes it so the selected cube isn't lost when clicking UI *made it impossible to modify cube data*
+        bool isMouseOverImGui = ImGui::GetIO().WantCaptureMouse;
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isMouseOverImGui)
         {
             if (!collision.hit)
             {
@@ -76,18 +79,6 @@ int main()
                 selectedCube = nullptr;
                 collision.hit = false;
             }
-        }
-
-        if (selectedCube != nullptr)
-        {
-            Vector2 mouseDelta = GetMouseDelta();
-            Vector2 scrollDirection = GetMouseWheelMoveV();
-
-            selectedCube->position.x += mouseDelta.x * 0.05f;
-            selectedCube->position.z += mouseDelta.y * 0.05f;
-
-            // Not the best as you do easily move the mouse, but setting an if doesn't work, as theres intervals between scrolling
-            selectedCube->position.y += scrollDirection.y * 0.2f;
         }
 
         // Indenting for readability

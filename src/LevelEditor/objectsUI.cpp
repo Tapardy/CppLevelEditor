@@ -21,6 +21,7 @@ namespace ObjectUI
         static ImVec4 imguiColor = rlImGuiColors::Convert(RED);
         static Color color = RED;
 
+        // Recieve the data
         if (selectedCube != nullptr)
         {
             position[0] = selectedCube->position.x;
@@ -45,31 +46,25 @@ namespace ObjectUI
 
         color = rlImGuiColors::Convert(imguiColor);
 
+        Vector3 newPosition = {position[0], position[1], position[2]};
+        Vector3 newRotation = {rotation[0], rotation[1], rotation[2]};
+        Vector3 newSize = {size[0], size[1], size[2]};
+
+        // Modify the data
         if (selectedCube != nullptr)
         {
-            selectedCube->position.x = position[0];
-            selectedCube->position.y = position[1];
-            selectedCube->position.z = position[2];
-
-            selectedCube->rotation.x = rotation[0];
-            selectedCube->rotation.y = rotation[1];
-            selectedCube->rotation.z = rotation[2];
-
-            selectedCube->size.x = size[0];
-            selectedCube->size.y = size[1];
-            selectedCube->size.z = size[2];
-
-            selectedCube->color = color;
+            ObjectHandling::ModifyCube(*selectedCube, newPosition, newRotation, newSize, color);
         }
 
         if (ImGui::Button("Spawn Cube"))
         {
-            Vector3 newPosition = {position[0], position[1], position[2]};
-            Vector3 newRotation = {rotation[0], rotation[1], rotation[2]};
-            Vector3 newSize = {size[0], size[1], size[2]};
-
             Object::Cube newCube = {newPosition, newRotation, newSize, color};
             ObjectHandling::SpawnCube(cubes, newCube);
+        }
+
+        if (ImGui::Button("Delete Cube") && selectedCube != nullptr)
+        {
+            ObjectHandling::DeleteSelectedCube(cubes, *selectedCube);
         }
 
         ImGui::End();

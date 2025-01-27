@@ -5,5 +5,7 @@
 
 namespace ObjectHandling
 {
-    Object::Cube SpawnCube(vCubes &cubes, Object::Cube newCube);
+    void SpawnCube(vCubes &cubes, Object::Cube newCube);
+    void ModifyCube(Object::Cube &cube, Vector3 newPosition, Vector3 newRotation, Vector3 newSize, Color newColor);
+    void DeleteSelectedCube(vCubes &cubes, Object::Cube &selectedCube);
 }
