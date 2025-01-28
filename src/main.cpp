@@ -3,11 +3,13 @@
 #include <vector>
 #include "typedef.h"
 #include "Inputs/inputs.h"
-#include "LevelEditor/objects.h"
 #include "LevelEditor/objectsUI.h"
+#include "LevelEditor/gameEntity.h"
 #include "SaveLevel/save.h"
 #include "../imgui/imgui.h"
 #include "../imgui/rlImGui.h"
+#include "../imgui/rlImGuiColors.h"
+#include <raymath.h>
 
 int main()
 {
@@ -28,10 +30,8 @@ int main()
     Ray ray = {0};
     RayCollision collision = {0};
 
-    // Apparently the vectors better than a list, so here we are
-    vCubes cubes;
-
-    Object::Cube *selectedCube = nullptr;
+    std::vector<GameEntity *> entities;
+    GameEntity *selectedEntity = nullptr;
 
     SetTargetFPS(60);
 
@@ -39,11 +39,11 @@ int main()
     {
         if (IsKeyPressed(KEY_F5))
         {
-            SaveLevel(&cubes);
+            // Need to implement the new Save function with the GameEntities, but lazy atm
         }
         if (IsKeyPressed(KEY_F6))
         {
-            LoadLevel(&cubes);
+            // Need to implement the new Load function with the GameEntities, but lazy atm
         }
 
         // Simulate a godot cam and make it much easier for me to move objects
@@ -58,26 +58,41 @@ int main()
         //  Makes it so the selected cube isn't lost when clicking UI *made it impossible to modify cube data*
         bool isMouseOverImGui = ImGui::GetIO().WantCaptureMouse;
 
+        // Really should extract this by now
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isMouseOverImGui)
         {
-            if (!collision.hit)
+            ray = GetScreenToWorldRay(GetMousePosition(), camera);
+            selectedEntity = nullptr;
+            for (auto entity : entities)
             {
-                ray = GetScreenToWorldRay(GetMousePosition(), camera);
-                for (auto &&cube : cubes)
+                // Just skip without a transform
+                auto transform = entity->GetComponent<TransformComponent>();
+                if (!transform)
+                    continue;
+
+                if (auto cube = entity->GetComponent<CubeComponent>())
                 {
-                    collision = GetRayCollisionBox(ray, cube.GetBoundingBox());
-                    if (collision.hit)
-                    {
-                        selectedCube = &cube;
-                        // Break so you don't add another
-                        break;
-                    }
+                    // Have to do this again atm, will fix later
+                    BoundingBox box = {
+                        Vector3Subtract(transform->position, Vector3Scale(cube->size, 0.5f)),
+                        Vector3Add(transform->position, Vector3Scale(cube->size, 0.5f))};
+                    collision = GetRayCollisionBox(ray, box);
                 }
-            }
-            else
-            {
-                selectedCube = nullptr;
-                collision.hit = false;
+                else if (auto sphere = entity->GetComponent<SphereComponent>())
+                {
+                    collision = GetRayCollisionSphere(ray, transform->position, sphere->radius);
+                }
+                else
+                {
+                    continue;
+                }
+
+                if (collision.hit)
+                {
+                    selectedEntity = entity;
+                    // Break so you don't add another
+                    break;
+                }
             }
         }
 
@@ -87,18 +102,36 @@ int main()
             ClearBackground(RAYWHITE);
 
             rlImGuiBegin();
-            ObjectUI::RenderCubeGUI(cubes, selectedCube);
+            {
+                ObjectUI::RenderGeneralUI(&selectedEntity, entities);
+            }
             rlImGuiEnd();
 
             BeginMode3D(camera);
             {
-                for (auto &&cube : cubes)
+                for (auto entity : entities)
                 {
-                    DrawCubeV(cube.position, cube.size, cube.color);
-                    if (&cube == selectedCube)
+                    auto transform = entity->GetComponent<TransformComponent>();
+                    if (!transform)
+                        continue;
+
+                    // Check for CubeComponent
+                    if (auto cube = entity->GetComponent<CubeComponent>())
                     {
-                        // Draw wireframe for now, will be replaced with gizmos later
-                        DrawCubeWiresV(cube.position, Vector3{cube.size.x + 0.2f, cube.size.y + 0.2f, cube.size.z + 0.2f}, BLACK);
+                        DrawCubeV(transform->position, cube->size, cube->color);
+                        if (entity == selectedEntity)
+                        {
+                            DrawCubeWiresV(transform->position, Vector3{cube->size.x + 0.2f, cube->size.y + 0.2f, cube->size.z + 0.2f}, BLACK);
+                        }
+                    }
+                    // Check for SphereComponent
+                    else if (auto sphere = entity->GetComponent<SphereComponent>())
+                    {
+                        DrawSphere(transform->position, sphere->radius, sphere->color);
+                        if (entity == selectedEntity)
+                        {
+                            DrawSphereWires(transform->position, sphere->radius + 0.1f, 16, 16, BLACK);
+                        }
                     }
                 }
             }
@@ -107,5 +140,6 @@ int main()
         EndDrawing();
     }
 
+    rlImGuiShutdown();
     CloseWindow();
 }
