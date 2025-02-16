@@ -85,6 +85,21 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
     }
 
     ImGui::End();
+
+    ImGui::Begin("Entity Hierarchy");
+
+    for (auto &entity : entities)
+    {
+        std::string entityName = "Entity " + std::to_string(reinterpret_cast<uintptr_t>(entity));
+
+        bool isSelected = (*selectedEntity == entity);
+        if (ImGui::Selectable(entityName.c_str(), isSelected))
+        {
+            *selectedEntity = entity;
+        }
+    }
+
+    ImGui::End();
 }
 
 void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
