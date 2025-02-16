@@ -10,6 +10,12 @@
 #include <vector>
 #include <string>
 
+bool RenderRemoveComponentButton()
+{
+    ImGui::SameLine();
+    return ImGui::Button("X##RemoveComponent");
+}
+
 void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities)
 {
     ImGui::Begin("Entity Editor");
@@ -51,12 +57,26 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
         if (auto cube = (*selectedEntity)->GetComponent<CubeComponent>())
         {
             ImGui::Text("Cube Component");
-            ObjectUI::RenderCubeComponentUI(cube);
+            if (RenderRemoveComponentButton())
+            {
+                (*selectedEntity)->RemoveComponent<CubeComponent>();
+            }
+            else
+            {
+                ObjectUI::RenderCubeComponentUI(cube);
+            }
         }
         if (auto sphere = (*selectedEntity)->GetComponent<SphereComponent>())
         {
             ImGui::Text("Sphere Component");
-            ObjectUI::RenderSphereComponentUI(sphere);
+            if (RenderRemoveComponentButton())
+            {
+                (*selectedEntity)->RemoveComponent<SphereComponent>();
+            }
+            else
+            {
+                ObjectUI::RenderSphereComponentUI(sphere);
+            }
         }
 
         if (ImGui::Button("Add Component"))

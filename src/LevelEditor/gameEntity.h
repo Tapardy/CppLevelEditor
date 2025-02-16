@@ -16,6 +16,15 @@ enum class ComponentType
     Sphere,
 };
 
+// Pretty handy if we could only have 1 component of the same category per entity, breaks less things
+enum class ComponentCategory
+{
+    // Transform is unique, always just the transform
+    Transform,
+    // Object is for meshes, cubes, etc etc etc
+    Object,
+};
+
 class Component
 {
 public:
@@ -23,9 +32,10 @@ public:
     // Pointer to the entity that owns it
     GameEntity *entity = nullptr;
     const ComponentType type;
+    const ComponentCategory category;
 
-    // Ctor to the component type cannot be changed
-    Component(ComponentType componentType) : type(componentType) {}
+    // Ctor to the component type and category cannot be changed
+    Component(ComponentType componentType, ComponentCategory componentCategory) : type(componentType), category(componentCategory) {}
 };
 
 // Has to be made in here, as it's a template
@@ -41,6 +51,17 @@ public:
     {
         // Create a new component of type T and making it unique
         auto component = std::make_unique<T>(std::forward<Args>(args)...);
+
+        // Just check all the components if theres one with the same category
+        for (const auto &pair : components)
+        {
+            // More work, it could REALLY just have been a vector, might just rewrite my "genius idea" and use the vector
+            const auto &existingComponent = pair.second;
+            if (existingComponent->category == component->category)
+            {
+                return nullptr;
+            }
+        }
 
         // Can't be null, so no reference, so we make it a pointer instead of direct
         T *componentPtr = component.get();
@@ -90,9 +111,10 @@ private:
 };
 
 // TODO: probably make a component header for this
+// Scale and rotation don't work yet. For rotation, I'll need to make rotation matrices
 struct TransformComponent : Component
 {
-    TransformComponent() : Component(ComponentType::Transform) {};
+    TransformComponent() : Component(ComponentType::Transform, ComponentCategory::Transform) {};
     Vector3 position = {0, 0, 0};
     Vector3 rotation = {0, 0, 0};
     Vector3 scale = {1, 1, 1};
@@ -100,7 +122,7 @@ struct TransformComponent : Component
 
 struct CubeComponent : Component
 {
-    CubeComponent() : Component(ComponentType::Cube) {}
+    CubeComponent() : Component(ComponentType::Cube, ComponentCategory::Object) {}
     Vector3 size = {1, 1, 1};
     Color color = RED;
 };
@@ -108,7 +130,7 @@ struct CubeComponent : Component
 struct SphereComponent : Component
 {
     // Need to figure out how this will be converted to the vec3
-    SphereComponent() : Component(ComponentType::Sphere) {}
+    SphereComponent() : Component(ComponentType::Sphere, ComponentCategory::Object) {}
     float radius = 1.0f;
     Color color = RED;
 };
