@@ -63,6 +63,7 @@ int main()
         {
             ray = GetScreenToWorldRay(GetMousePosition(), camera);
             selectedEntity = nullptr;
+
             for (auto entity : entities)
             {
                 // Just skip without a transform
@@ -72,15 +73,13 @@ int main()
 
                 if (auto cube = entity->GetComponent<CubeComponent>())
                 {
-                    // Have to do this again atm, will fix later
-                    BoundingBox box = {
-                        Vector3Subtract(transform->position, Vector3Scale(cube->size, 0.5f)),
-                        Vector3Add(transform->position, Vector3Scale(cube->size, 0.5f))};
+                    BoundingBox box = cube->GetBoundingBox();
                     collision = GetRayCollisionBox(ray, box);
                 }
                 else if (auto sphere = entity->GetComponent<SphereComponent>())
                 {
-                    collision = GetRayCollisionSphere(ray, transform->position, sphere->radius);
+                    float scaledRadius = sphere->GetScaledRadius();
+                    collision = GetRayCollisionSphere(ray, transform->position, scaledRadius);
                 }
                 else
                 {
@@ -118,19 +117,25 @@ int main()
                     // Check for CubeComponent
                     if (auto cube = entity->GetComponent<CubeComponent>())
                     {
-                        DrawCubeV(transform->position, cube->size, cube->color);
+                        Vector3 scaledSize = cube->GetScaledSize();
+                        DrawCubeV(transform->position, scaledSize, cube->color);
+
                         if (entity == selectedEntity)
                         {
-                            DrawCubeWiresV(transform->position, Vector3{cube->size.x + 0.2f, cube->size.y + 0.2f, cube->size.z + 0.2f}, BLACK);
+                            DrawCubeWiresV(transform->position,
+                                           Vector3{scaledSize.x + 0.2f, scaledSize.y + 0.2f, scaledSize.z + 0.2f},
+                                           BLACK);
                         }
                     }
                     // Check for SphereComponent
                     else if (auto sphere = entity->GetComponent<SphereComponent>())
                     {
-                        DrawSphere(transform->position, sphere->radius, sphere->color);
+                        float scaledRadius = sphere->GetScaledRadius();
+                        DrawSphere(transform->position, scaledRadius, sphere->color);
+
                         if (entity == selectedEntity)
                         {
-                            DrawSphereWires(transform->position, sphere->radius + 0.1f, 16, 16, BLACK);
+                            DrawSphereWires(transform->position, scaledRadius + 0.1f, 16, 16, BLACK);
                         }
                     }
                 }

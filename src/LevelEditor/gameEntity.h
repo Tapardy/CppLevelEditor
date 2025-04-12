@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include <typeindex>
+#include <raymath.h>
 
 // Forward declaration, otherwise the component it doesn't know (kinda need it cuz templates have to be here)
 class GameEntity;
@@ -118,6 +119,26 @@ struct TransformComponent : Component
     Vector3 position = {0, 0, 0};
     Vector3 rotation = {0, 0, 0};
     Vector3 scale = {1, 1, 1};
+
+    Matrix GetTransformMatrix() const
+    {
+        // Create a translation matrix
+        Matrix translation = MatrixTranslate(position.x, position.y, position.z);
+
+        // Create rotation matrices for each axis
+        Matrix rotationX = MatrixRotateX(rotation.x * DEG2RAD);
+        Matrix rotationY = MatrixRotateY(rotation.y * DEG2RAD);
+        Matrix rotationZ = MatrixRotateZ(rotation.z * DEG2RAD);
+
+        // Create a scaling matrix
+        Matrix scaling = MatrixScale(scale.x, scale.y, scale.z);
+
+        // Combine all transformations: translation * rotation * scale
+        // The order matters: first scale, then rotate, then translate, found that out the hard way
+        Matrix transform = MatrixMultiply(scaling, MatrixMultiply(rotationX, MatrixMultiply(rotationY, MatrixMultiply(rotationZ, translation))));
+
+        return transform;
+    }
 };
 
 struct CubeComponent : Component
@@ -125,12 +146,49 @@ struct CubeComponent : Component
     CubeComponent() : Component(ComponentType::Cube, ComponentCategory::Object) {}
     Vector3 size = {1, 1, 1};
     Color color = RED;
+
+    Vector3 GetScaledSize() const
+    {
+        auto transform = entity->GetComponent<TransformComponent>();
+        if (transform)
+        {
+            return {
+                size.x * transform->scale.x,
+                size.y * transform->scale.y,
+                size.z * transform->scale.z};
+        }
+        return size;
+    }
+
+    BoundingBox GetBoundingBox() const
+    {
+        auto transform = entity->GetComponent<TransformComponent>();
+        if (!transform)
+        {
+            return {Vector3{0, 0, 0}, Vector3{0, 0, 0}};
+        }
+
+        Vector3 scaledSize = GetScaledSize();
+        return {
+            Vector3Subtract(transform->position, Vector3Scale(scaledSize, 0.5f)),
+            Vector3Add(transform->position, Vector3Scale(scaledSize, 0.5f))};
+    }
 };
 
 struct SphereComponent : Component
 {
-    // Need to figure out how this will be converted to the vec3
     SphereComponent() : Component(ComponentType::Sphere, ComponentCategory::Object) {}
     float radius = 1.0f;
     Color color = RED;
+
+    float GetScaledRadius() const
+    {
+        auto transform = entity->GetComponent<TransformComponent>();
+        if (transform)
+        {
+            float avgScale = (transform->scale.x + transform->scale.y + transform->scale.z) / 3.0f;
+            return radius * avgScale;
+        }
+        return radius;
+    }
 };
