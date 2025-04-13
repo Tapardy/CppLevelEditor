@@ -5,7 +5,6 @@
 #include "../typedef.h"
 #include "objectsUI.h"
 #include "objects.h"
-#include "objectHandling.h"
 #include "GameEntity.h"
 #include <vector>
 #include <string>
