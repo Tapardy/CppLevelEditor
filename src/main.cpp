@@ -27,7 +27,6 @@ int main()
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    Ray ray = {0};
     RayCollision collision = {0};
 
     std::vector<GameEntity *> entities;
@@ -59,62 +58,73 @@ int main()
         bool isMouseOverImGui = ImGui::GetIO().WantCaptureMouse;
 
         // Really should extract this by now
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isMouseOverImGui)
+        Ray mouseRay = GetScreenToWorldRay(GetMousePosition(), camera);
+
+        if (!isMouseOverImGui && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
         {
-            ray = GetScreenToWorldRay(GetMousePosition(), camera);
-            selectedEntity = nullptr;
-
-            for (auto entity : entities)
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
             {
-                // Just skip without a transform
-                auto transform = entity->GetComponent<TransformComponent>();
-                if (!transform)
-                    continue;
-
-                if (auto cube = entity->GetComponent<CubeComponent>())
+                // Check if we clicked on a gizmo first
+                bool clickedOnGizmo = false;
+                if (selectedEntity)
                 {
-                    BoundingBox box = cube->GetBoundingBox();
-                    collision = GetRayCollisionBox(ray, box);
-                }
-                else if (auto sphere = entity->GetComponent<SphereComponent>())
-                {
-                    float scaledRadius = sphere->GetScaledRadius();
-                    collision = GetRayCollisionSphere(ray, transform->position, scaledRadius);
-                }
-                else
-                {
-                    continue;
+                    clickedOnGizmo = ObjectUI::IsGizmoClicked(camera, mouseRay);
                 }
 
-                if (collision.hit)
+                if (!clickedOnGizmo)
                 {
-                    selectedEntity = entity;
-                    // Break so you don't add another
-                    break;
+                    selectedEntity = nullptr;
+
+                    for (auto entity : entities)
+                    {
+                        auto transform = entity->GetComponent<TransformComponent>();
+                        if (!transform)
+                            continue;
+
+                        if (auto cube = entity->GetComponent<CubeComponent>())
+                        {
+                            BoundingBox box = cube->GetBoundingBox();
+                            collision = GetRayCollisionBox(mouseRay, box);
+                        }
+                        else if (auto sphere = entity->GetComponent<SphereComponent>())
+                        {
+                            float scaledRadius = sphere->GetScaledRadius();
+                            collision = GetRayCollisionSphere(mouseRay, transform->position, scaledRadius);
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        if (collision.hit)
+                        {
+                            selectedEntity = entity;
+                            break;
+                        }
+                    }
                 }
             }
         }
-
         // Indenting for readability
         BeginDrawing();
         {
             ClearBackground(RAYWHITE);
 
-            rlImGuiBegin();
-            {
-                ObjectUI::RenderGeneralUI(&selectedEntity, entities);
-            }
-            rlImGuiEnd();
-
             BeginMode3D(camera);
             {
+                DrawGrid(50, 1.0f);
+
+                if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+                {
+                    ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay);
+                }
+
                 for (auto entity : entities)
                 {
                     auto transform = entity->GetComponent<TransformComponent>();
                     if (!transform)
                         continue;
 
-                    // Check for CubeComponent
                     if (auto cube = entity->GetComponent<CubeComponent>())
                     {
                         Vector3 scaledSize = cube->GetScaledSize();
@@ -127,7 +137,6 @@ int main()
                                            BLACK);
                         }
                     }
-                    // Check for SphereComponent
                     else if (auto sphere = entity->GetComponent<SphereComponent>())
                     {
                         float scaledRadius = sphere->GetScaledRadius();
@@ -141,6 +150,13 @@ int main()
                 }
             }
             EndMode3D();
+
+            // Last is better, will always have it on top
+            rlImGuiBegin();
+            {
+                ObjectUI::RenderGeneralUI(&selectedEntity, entities);
+            }
+            rlImGuiEnd();
         }
         EndDrawing();
     }

@@ -9,10 +9,47 @@
 #include <vector>
 #include <string>
 
+GizmoSystem ObjectUI::gizmoSystem;
 bool RenderRemoveComponentButton()
 {
     ImGui::SameLine();
     return ImGui::Button("X##RemoveComponent");
+}
+
+bool ObjectUI::IsGizmoClicked(Camera camera, Ray mouseRay)
+{
+    return gizmoSystem.CheckForAxisClick(mouseRay);
+}
+
+bool ObjectUI::IsGizmoHovered(Ray mouseRay)
+{
+    return gizmoSystem.IsMouseOverGizmo(mouseRay);
+}
+
+void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, Ray mouseRay)
+{
+    if (!selectedEntity)
+    {
+        gizmoSystem.Deactivate();
+        return;
+    }
+
+    auto transform = selectedEntity->GetComponent<TransformComponent>();
+    if (!transform)
+    {
+        gizmoSystem.Deactivate();
+        return;
+    }
+
+    static Vector3 *lastTarget = nullptr;
+    if (lastTarget != &transform->position)
+    {
+        gizmoSystem.SetTarget(&transform->position);
+        lastTarget = &transform->position;
+    }
+
+    gizmoSystem.Update(camera, mouseRay, transform->position);
+    gizmoSystem.Render(camera, mouseRay);
 }
 
 void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities)
@@ -125,10 +162,20 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
     {
         if (ImGui::CollapsingHeader("Transform Component", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            // TODO fix dragging
             ImGui::Text("Position");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
+
+            if (gizmoSystem.IsActive() && gizmoSystem.GetTargetAddress() == &transform->position)
+            {
+                ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
+
+                ImGui::SameLine();
+                ImGui::TextDisabled("[Gizmo]");
+            }
+            else
+            {
+                ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
+            }
 
             ImGui::Text("Rotation");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
