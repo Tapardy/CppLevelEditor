@@ -12,26 +12,28 @@ class GizmoSystem
 {
 private:
     float GetMovementAlongAxis(const Ray &mouseRay, int axis, Camera camera) const;
-
-    GizmoMode mode;
-    Color axisColors[3];
-    Vector3 *targetPosition;
-    Vector3 dragStartPos;
-    Vector3 dragStartMouseWorld;
-    bool isDragging;
-    int selectedAxis;
-    float axisLength;
-    float handleRadius;
-    float highlightScale;
-    float lastAppliedDelta;
-    float snapStep;
-    float accumulatedMovement;
-    float dragStartMovement;
+    GizmoMode mode = GizmoMode::NONE;
+    Color axisColors[3] = {RED, GREEN, BLUE}; // X, Y, Z axes
+    Vector3 *targetPosition = nullptr;
+    Vector3 dragStartPos = {0, 0, 0};
+    Vector3 dragStartMouseWorld = {0, 0, 0};
+    bool isDragging = false;
+    int selectedAxis = -1;
+    float axisLength = 2.0f;
+    float arrowHeadLength = 0.4f;
+    float arrowHeadRadius = 0.15f;
+    float axisRadius = 0.025f;
+    float highlightScale = 1.2f;
+    float lastAppliedDelta = 0.0f;
+    float snapStep = 0.10f;
+    float accumulatedMovement = 0.0f;
+    float dragStartMovement = 0.0f;
 
     Ray GetAxisRay(int axis) const;
     bool CheckAxisHover(const Ray &mouseRay, int axis, float &distance) const;
     Vector3 GetAxisDirection(int axis) const;
     Vector3 ProjectMouseToAxis(const Ray &mouseRay, int axis, Camera camera) const;
+    void DrawArrow(Vector3 start, Vector3 end, float radius, float headLength, float headRadius, Color color, bool highlighted = false);
 
 public:
     GizmoSystem();

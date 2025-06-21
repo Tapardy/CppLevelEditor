@@ -5,24 +5,11 @@
  * @brief Default constructor for the GizmoSystem.
  *
  * Initializes the gizmo system in its default state, with no target position
- * and the mode set to NONE.
+ * and the mode set to NONE. All default values are now set in the header file.
  */
-GizmoSystem::GizmoSystem() : mode(GizmoMode::NONE),
-                             targetPosition(nullptr),
-                             isDragging(false),
-                             selectedAxis(-1),
-                             axisLength(2.0f),
-                             handleRadius(0.3f),
-                             highlightScale(1.2f),
-                             lastAppliedDelta(0.0f),
-                             snapStep(0.10f)
+GizmoSystem::GizmoSystem()
 {
-    axisColors[0] = RED;   // X-axis
-    axisColors[1] = GREEN; // Y-axis
-    axisColors[2] = BLUE;  // Z-axis
-
-    dragStartPos = {0, 0, 0};
-    dragStartMouseWorld = {0, 0, 0};
+    // All initialization is now handled by default member initializers in the header
 }
 
 /**
@@ -33,7 +20,6 @@ GizmoSystem::GizmoSystem() : mode(GizmoMode::NONE),
  *
  * @param newSnapStep The desired snap step value for gizmo movement.
  */
-
 void GizmoSystem::SetSnapStep(float newSnapStep)
 {
     snapStep = (newSnapStep > 0.0f) ? newSnapStep : 0.01f;
@@ -64,7 +50,6 @@ void GizmoSystem::SetTarget(Vector3 *position)
  * This method effectively deactivates the gizmo,
  * making it inactive until a new target is set.
  */
-
 void GizmoSystem::Deactivate()
 {
     mode = GizmoMode::NONE;
@@ -111,6 +96,36 @@ Ray GizmoSystem::GetAxisRay(int axis) const
 }
 
 /**
+ * @brief Draws an arrow from start to end position with specified dimensions
+ * @param start Starting position of the arrow
+ * @param end Ending position of the arrow
+ * @param radius Radius of the arrow shaft
+ * @param headLength Length of the arrow head
+ * @param headRadius Radius of the arrow head base
+ * @param color Color of the arrow
+ * @param highlighted Whether to draw the arrow in highlighted state
+ */
+void GizmoSystem::DrawArrow(Vector3 start, Vector3 end, float radius, float headLength, float headRadius, Color color, bool highlighted)
+{
+    Vector3 direction = Vector3Normalize(Vector3Subtract(end, start));
+    float totalLength = Vector3Distance(start, end);
+    float shaftLength = totalLength - headLength;
+
+    // Calculate shaft end position
+    Vector3 shaftEnd = Vector3Add(start, Vector3Scale(direction, shaftLength));
+
+    // Apply highlight scaling if needed
+    float currentRadius = highlighted ? radius * highlightScale : radius;
+    float currentHeadRadius = highlighted ? headRadius * highlightScale : headRadius;
+
+    // Draw shaft as cylinder
+    DrawCylinderEx(start, shaftEnd, currentRadius, currentRadius, 8, color);
+
+    // Draw arrow head as cone
+    DrawCylinderEx(shaftEnd, end, currentHeadRadius, 0.0f, 8, color);
+}
+
+/**
  * @brief Checks if the given axis is hovered by the mouse ray
  * @param mouseRay The ray from the mouse position and direction
  * @param axis The axis to check (0 = X, 1 = Y, 2 = Z)
@@ -123,33 +138,33 @@ bool GizmoSystem::CheckAxisHover(const Ray &mouseRay, int axis, float &distance)
         return false;
 
     Vector3 axisDir = GetAxisDirection(axis);
-    Vector3 axisEnd = Vector3Add(*targetPosition, Vector3Scale(axisDir, axisLength));
+    Vector3 arrowHeadStart = Vector3Add(*targetPosition, Vector3Scale(axisDir, axisLength - arrowHeadLength));
 
-    // Check collision with handle sphere at the end of axis
-    RayCollision handleCollision = GetRayCollisionSphere(mouseRay, axisEnd, handleRadius);
-    if (handleCollision.hit)
+    // Check collision with arrow head (cone)
+    RayCollision headCollision = GetRayCollisionSphere(mouseRay, Vector3Add(arrowHeadStart, Vector3Scale(axisDir, arrowHeadLength * 0.5f)), arrowHeadRadius);
+    if (headCollision.hit)
     {
-        distance = handleCollision.distance;
+        distance = headCollision.distance;
         return true;
     }
 
-    // Check collision with axis line using cylinder approximation
-    // This took a stupid long time to figure out
+    // Check collision with axis shaft using cylinder approximation
     const int segments = 10;
     float minDist = FLT_MAX;
     bool hit = false;
+    float shaftLength = axisLength - arrowHeadLength;
 
     for (int i = 0; i <= segments; i++)
     {
         float t = (float)i / segments;
-        Vector3 axisPoint = Vector3Add(*targetPosition, Vector3Scale(axisDir, axisLength * t));
+        Vector3 axisPoint = Vector3Add(*targetPosition, Vector3Scale(axisDir, shaftLength * t));
 
         Vector3 rayToAxis = Vector3Subtract(axisPoint, mouseRay.position);
         float projection = Vector3DotProduct(rayToAxis, mouseRay.direction);
         Vector3 closestOnRay = Vector3Add(mouseRay.position, Vector3Scale(mouseRay.direction, projection));
 
         float dist = Vector3Distance(axisPoint, closestOnRay);
-        if (dist < handleRadius * 1.5f && dist < minDist)
+        if (dist < arrowHeadRadius && dist < minDist)
         {
             minDist = dist;
             distance = projection;
@@ -281,7 +296,7 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position)
 /**
  * Renders the gizmo in the 3D scene using the provided camera and mouse ray.
  * Highlights the axis being hovered over or dragged, if any, and draws the
- * gizmo's axes with sphere handles at their ends. Displays the current axis
+ * gizmo's axes as arrows with cone heads. Displays the current axis
  * being dragged along with snapping information if dragging is active.
  *
  * @param camera The camera used for rendering.
@@ -307,6 +322,7 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
         }
     }
 
+    // Draw arrows for each axis
     for (int i = 0; i < 3; i++)
     {
         bool isHighlighted = (isDragging && selectedAxis == i) || (!isDragging && hoveredAxis == i);
@@ -314,19 +330,11 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
         Vector3 direction = GetAxisDirection(i);
         Vector3 endPoint = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength));
 
-        if (isHighlighted)
-        {
-            DrawCylinderEx(*targetPosition, endPoint, 0.05f, 0.05f, 8, axisColors[i]);
-            DrawSphere(endPoint, handleRadius * highlightScale, axisColors[i]);
-        }
-        else
-        {
-            DrawCylinderEx(*targetPosition, endPoint, 0.025f, 0.025f, 8, axisColors[i]);
-            DrawSphere(endPoint, handleRadius, axisColors[i]);
-        }
+        DrawArrow(*targetPosition, endPoint, axisRadius, arrowHeadLength, arrowHeadRadius, axisColors[i], isHighlighted);
     }
 
-    DrawSphere(*targetPosition, handleRadius * 0.5f, WHITE);
+    // Draw center sphere
+    DrawSphere(*targetPosition, axisRadius * 2.0f, WHITE);
 
     if (isDragging)
     {
