@@ -168,7 +168,6 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
             if (gizmoSystem.IsActive() && gizmoSystem.GetTargetAddress() == &transform->position)
             {
                 ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
-
                 ImGui::SameLine();
                 ImGui::TextDisabled("[Gizmo]");
             }
@@ -177,10 +176,118 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
                 ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
             }
 
+            // EULER ANGLE ROTATION UI
+            ImGui::Separator();
             ImGui::Text("Rotation");
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::InputFloat3("##Rotation", &transform->rotation.x, "%.2f");
 
+            // Get current euler angles for display/editing
+            Vector3 eulerAngles = transform->GetEulerAngles();
+
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            if (ImGui::InputFloat3("##Rotation", &eulerAngles.x, "%.2f"))
+            {
+                transform->SetEulerAngles(eulerAngles);
+            }
+
+            ImGui::TextDisabled("(Pitch, Yaw, Roll in degrees)");
+
+            ImGui::Separator();
+            ImGui::Text("Quick Rotations:");
+
+            // World space rotation buttons
+            ImGui::Text("World Space:");
+            ImGui::BeginGroup();
+            if (ImGui::Button("X+15°"))
+                transform->RotateAroundWorldAxis({1, 0, 0}, 15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("X-15°"))
+                transform->RotateAroundWorldAxis({1, 0, 0}, -15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Y+15°"))
+                transform->RotateAroundWorldAxis({0, 1, 0}, 15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Y-15°"))
+                transform->RotateAroundWorldAxis({0, 1, 0}, -15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Z+15°"))
+                transform->RotateAroundWorldAxis({0, 0, 1}, 15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Z-15°"))
+                transform->RotateAroundWorldAxis({0, 0, 1}, -15.0f);
+            ImGui::EndGroup();
+
+            ImGui::BeginGroup();
+            if (ImGui::Button("X+90°"))
+                transform->RotateAroundWorldAxis({1, 0, 0}, 90.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("X-90°"))
+                transform->RotateAroundWorldAxis({1, 0, 0}, -90.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Y+90°"))
+                transform->RotateAroundWorldAxis({0, 1, 0}, 90.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Y-90°"))
+                transform->RotateAroundWorldAxis({0, 1, 0}, -90.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Z+90°"))
+                transform->RotateAroundWorldAxis({0, 0, 1}, 90.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Z-90°"))
+                transform->RotateAroundWorldAxis({0, 0, 1}, -90.0f);
+            ImGui::EndGroup();
+
+            // Local space rotation buttons
+            ImGui::Text("Local Space:");
+            ImGui::BeginGroup();
+            if (ImGui::Button("Pitch+15°"))
+                transform->RotateAroundLocalAxis({1, 0, 0}, 15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Pitch-15°"))
+                transform->RotateAroundLocalAxis({1, 0, 0}, -15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Yaw+15°"))
+                transform->RotateAroundLocalAxis({0, 1, 0}, 15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Yaw-15°"))
+                transform->RotateAroundLocalAxis({0, 1, 0}, -15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Roll+15°"))
+                transform->RotateAroundLocalAxis({0, 0, 1}, 15.0f);
+            ImGui::SameLine();
+            if (ImGui::Button("Roll-15°"))
+                transform->RotateAroundLocalAxis({0, 0, 1}, -15.0f);
+            ImGui::EndGroup();
+
+            // Utility buttons
+            ImGui::Separator();
+            if (ImGui::Button("Reset Rotation"))
+            {
+                transform->ResetRotation();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Snap to Grid"))
+            {
+                // Snap to nearest 15-degree increments
+                Vector3 current = transform->GetEulerAngles();
+                Vector3 snapped = {
+                    roundf(current.x / 15.0f) * 15.0f,
+                    roundf(current.y / 15.0f) * 15.0f,
+                    roundf(current.z / 15.0f) * 15.0f};
+                transform->SetEulerAngles(snapped);
+            }
+
+            if (ImGui::CollapsingHeader("Orientation Vectors"))
+            {
+                Vector3 forward = transform->GetForward();
+                Vector3 right = transform->GetRight();
+                Vector3 up = transform->GetUp();
+
+                ImGui::Text("Forward: (%.2f, %.2f, %.2f)", forward.x, forward.y, forward.z);
+                ImGui::Text("Right:   (%.2f, %.2f, %.2f)", right.x, right.y, right.z);
+                ImGui::Text("Up:      (%.2f, %.2f, %.2f)", up.x, up.y, up.z);
+            }
+
+            ImGui::Separator();
             ImGui::Text("Scale");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             ImGui::InputFloat3("##Scale", &transform->scale.x, "%.2f");
@@ -201,12 +308,6 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
             if (ImGui::Button("Reset Scale"))
             {
                 transform->scale = {1.0f, 1.0f, 1.0f};
-                if (ImGui::IsPopupOpen("UniformScalePopup"))
-                {
-                    ImGui::GetStateStorage()->SetFloat(
-                        ImGui::GetID("##UniformScale"),
-                        1.0f);
-                }
             }
             ImGui::EndGroup();
 

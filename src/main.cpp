@@ -10,6 +10,7 @@
 #include "../imgui/rlImGui.h"
 #include "../imgui/rlImGuiColors.h"
 #include <raymath.h>
+#include <rlgl.h>
 
 int main()
 {
@@ -125,28 +126,36 @@ int main()
                     if (!transform)
                         continue;
 
+                    // Apply world position first, then rotation/scale, order is important
+                    rlPushMatrix();
+
+                    rlTranslatef(transform->position.x, transform->position.y, transform->position.z);
+
+                    Matrix transformMatrix = transform->GetTransformMatrix();
+                    rlMultMatrixf(MatrixToFloat(transformMatrix));
+
                     if (auto cube = entity->GetComponent<CubeComponent>())
                     {
-                        Vector3 scaledSize = cube->GetScaledSize();
-                        DrawCubeV(transform->position, scaledSize, cube->color);
+                        DrawCubeV(Vector3{0, 0, 0}, cube->size, cube->color);
 
                         if (entity == selectedEntity)
                         {
-                            DrawCubeWiresV(transform->position,
-                                           Vector3{scaledSize.x + 0.2f, scaledSize.y + 0.2f, scaledSize.z + 0.2f},
+                            DrawCubeWiresV(Vector3{0, 0, 0},
+                                           Vector3{cube->size.x + 0.02f, cube->size.y + 0.02f, cube->size.z + 0.02f},
                                            BLACK);
                         }
                     }
                     else if (auto sphere = entity->GetComponent<SphereComponent>())
                     {
-                        float scaledRadius = sphere->GetScaledRadius();
-                        DrawSphere(transform->position, scaledRadius, sphere->color);
+                        DrawSphere(Vector3{0, 0, 0}, sphere->radius, sphere->color);
 
                         if (entity == selectedEntity)
                         {
-                            DrawSphereWires(transform->position, scaledRadius + 0.1f, 16, 16, BLACK);
+                            DrawSphereWires(Vector3{0, 0, 0}, sphere->radius + 0.01f, 16, 16, BLACK);
                         }
                     }
+
+                    rlPopMatrix();
                 }
             }
             EndMode3D();

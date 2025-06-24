@@ -112,35 +112,94 @@ private:
 };
 
 // TODO: probably make a component header for this
-// Scale and rotation don't work yet. For rotation, I'll need to make rotation matrices
 struct TransformComponent : Component
 {
     TransformComponent() : Component(ComponentType::Transform, ComponentCategory::Transform) {};
     Vector3 position = {0, 0, 0};
-    Vector3 rotation = {0, 0, 0};
     Vector3 scale = {1, 1, 1};
+
+    Quaternion rotation = QuaternionIdentity();
 
     Matrix GetTransformMatrix() const
     {
-        // Create a translation matrix
-        Matrix translation = MatrixTranslate(position.x, position.y, position.z);
-
-        // Create rotation matrices for each axis
-        Matrix rotationX = MatrixRotateX(rotation.x * DEG2RAD);
-        Matrix rotationY = MatrixRotateY(rotation.y * DEG2RAD);
-        Matrix rotationZ = MatrixRotateZ(rotation.z * DEG2RAD);
-
-        // Create a scaling matrix
         Matrix scaling = MatrixScale(scale.x, scale.y, scale.z);
+        Matrix rotationMatrix = QuaternionToMatrix(rotation);
 
-        // Combine all transformations: translation * rotation * scale
-        // The order matters: first scale, then rotate, then translate, found that out the hard way
-        Matrix transform = MatrixMultiply(scaling, MatrixMultiply(rotationX, MatrixMultiply(rotationY, MatrixMultiply(rotationZ, translation))));
+        // Scale first, then rotate!!!!
+        return MatrixMultiply(scaling, rotationMatrix);
+    }
 
-        return transform;
+    // Rotate around world axes
+    void RotateAroundWorldAxis(Vector3 axis, float angleDegrees)
+    {
+        Quaternion deltaRotation = QuaternionFromAxisAngle(Vector3Normalize(axis), angleDegrees * DEG2RAD);
+        rotation = QuaternionMultiply(deltaRotation, rotation);
+    }
+
+    // Rotate around local axes
+    void RotateAroundLocalAxis(Vector3 axis, float angleDegrees)
+    {
+        Quaternion deltaRotation = QuaternionFromAxisAngle(Vector3Normalize(axis), angleDegrees * DEG2RAD);
+        rotation = QuaternionMultiply(rotation, deltaRotation);
+    }
+
+    void ResetRotation()
+    {
+        rotation = QuaternionIdentity();
+    }
+
+    // Get forward, right, up vectors (useful for understanding current rotation)
+    Vector3 GetForward() const
+    {
+        return Vector3Transform(Vector3{0, 0, -1}, QuaternionToMatrix(rotation));
+    }
+
+    Vector3 GetRight() const
+    {
+        return Vector3Transform(Vector3{1, 0, 0}, QuaternionToMatrix(rotation));
+    }
+
+    Vector3 GetUp() const
+    {
+        return Vector3Transform(Vector3{0, 1, 0}, QuaternionToMatrix(rotation));
+    }
+
+    // EULER ANGLE FUNCTIONS FOR UI INTEGRATION (kinda nice to have yk)
+    Vector3 GetEulerAngles() const
+    {
+        Vector3 eulerRad = QuaternionToEuler(rotation);
+        return {
+            eulerRad.x * RAD2DEG,
+            eulerRad.y * RAD2DEG,
+            eulerRad.z * RAD2DEG};
+    }
+
+    void SetEulerAngles(Vector3 eulerDegrees)
+    {
+        float pitchRad = eulerDegrees.x * DEG2RAD;
+        float yawRad = eulerDegrees.y * DEG2RAD;
+        float rollRad = eulerDegrees.z * DEG2RAD;
+
+        rotation = QuaternionFromEuler(pitchRad, yawRad, rollRad);
+    }
+
+    void SetEulerAngles(float pitch, float yaw, float roll)
+    {
+        SetEulerAngles({pitch, yaw, roll});
+    }
+
+    void AddEulerAngles(Vector3 eulerDegrees)
+    {
+        Vector3 currentEuler = GetEulerAngles();
+        Vector3 newEuler = Vector3Add(currentEuler, eulerDegrees);
+        SetEulerAngles(newEuler);
+    }
+
+    void AddEulerAngles(float pitch, float yaw, float roll)
+    {
+        AddEulerAngles({pitch, yaw, roll});
     }
 };
-
 struct CubeComponent : Component
 {
     CubeComponent() : Component(ComponentType::Cube, ComponentCategory::Object) {}
