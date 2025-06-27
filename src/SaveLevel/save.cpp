@@ -4,6 +4,7 @@
 
 bool SaveLevel()
 {
+    return true;
 }
 
 void LoadLevel()
