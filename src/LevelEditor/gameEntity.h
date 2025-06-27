@@ -117,14 +117,14 @@ struct TransformComponent : Component
     TransformComponent() : Component(ComponentType::Transform, ComponentCategory::Transform) {};
     Vector3 position = {0, 0, 0};
     Vector3 scale = {1, 1, 1};
-
     Quaternion rotation = QuaternionIdentity();
+    Vector3 eulerAngles = {0, 0, 0};
+    bool useEulerStorage = true;
 
     Matrix GetTransformMatrix() const
     {
         Matrix scaling = MatrixScale(scale.x, scale.y, scale.z);
         Matrix rotationMatrix = QuaternionToMatrix(rotation);
-
         // Scale first, then rotate!!!!
         return MatrixMultiply(scaling, rotationMatrix);
     }
@@ -132,74 +132,123 @@ struct TransformComponent : Component
     // Rotate around world axes
     void RotateAroundWorldAxis(Vector3 axis, float angleDegrees)
     {
-        Quaternion deltaRotation = QuaternionFromAxisAngle(Vector3Normalize(axis), angleDegrees * DEG2RAD);
-        rotation = QuaternionMultiply(deltaRotation, rotation);
+        if (useEulerStorage)
+        {
+            if (fabs(axis.x - 1.0f) < 0.001f)
+                eulerAngles.x += angleDegrees;
+            else if (fabs(axis.y - 1.0f) < 0.001f)
+                eulerAngles.y += angleDegrees;
+            else if (fabs(axis.z - 1.0f) < 0.001f)
+                eulerAngles.z += angleDegrees;
+
+            WrapEulerAngles();
+            UpdateQuaternionFromEuler();
+        }
+        else
+        {
+            Quaternion deltaRotation = QuaternionFromAxisAngle(Vector3Normalize(axis), angleDegrees * DEG2RAD);
+            rotation = QuaternionNormalize(QuaternionMultiply(deltaRotation, rotation));
+        }
     }
 
     // Rotate around local axes
     void RotateAroundLocalAxis(Vector3 axis, float angleDegrees)
     {
         Quaternion deltaRotation = QuaternionFromAxisAngle(Vector3Normalize(axis), angleDegrees * DEG2RAD);
-        rotation = QuaternionMultiply(rotation, deltaRotation);
+        rotation = QuaternionNormalize(QuaternionMultiply(rotation, deltaRotation));
+        if (useEulerStorage)
+            UpdateEulerFromQuaternion();
     }
 
     void ResetRotation()
     {
         rotation = QuaternionIdentity();
+        eulerAngles = {0, 0, 0};
     }
 
     // Get forward, right, up vectors (useful for understanding current rotation)
-    Vector3 GetForward() const
-    {
-        return Vector3Transform(Vector3{0, 0, -1}, QuaternionToMatrix(rotation));
-    }
+    Vector3 GetForward() const { return Vector3Transform({0, 0, -1}, QuaternionToMatrix(rotation)); }
+    Vector3 GetRight() const { return Vector3Transform({1, 0, 0}, QuaternionToMatrix(rotation)); }
+    Vector3 GetUp() const { return Vector3Transform({0, 1, 0}, QuaternionToMatrix(rotation)); }
 
-    Vector3 GetRight() const
-    {
-        return Vector3Transform(Vector3{1, 0, 0}, QuaternionToMatrix(rotation));
-    }
-
-    Vector3 GetUp() const
-    {
-        return Vector3Transform(Vector3{0, 1, 0}, QuaternionToMatrix(rotation));
-    }
-
-    // EULER ANGLE FUNCTIONS FOR UI INTEGRATION (kinda nice to have yk)
     Vector3 GetEulerAngles() const
     {
-        Vector3 eulerRad = QuaternionToEuler(rotation);
-        return {
-            eulerRad.x * RAD2DEG,
-            eulerRad.y * RAD2DEG,
-            eulerRad.z * RAD2DEG};
+        if (useEulerStorage)
+            return eulerAngles;
+
+        Matrix m = QuaternionToMatrix(rotation);
+        Vector3 rad = {0};
+
+        if (fabsf(m.m1) < 0.99999f)
+        {
+            rad.x = asinf(-m.m1);       // pitch (X)
+            rad.y = atan2f(m.m2, m.m0); // yaw (Y)
+            rad.z = atan2f(m.m5, m.m9); // roll (Z)
+        }
+        else
+        {
+            rad.x = asinf(-m.m1);
+            rad.y = atan2f(-m.m8, m.m10);
+            rad.z = 0;
+        }
+
+        return {rad.x * RAD2DEG, rad.y * RAD2DEG, rad.z * RAD2DEG};
     }
 
-    void SetEulerAngles(Vector3 eulerDegrees)
+    void SetEulerAngles(Vector3 degrees)
     {
-        float pitchRad = eulerDegrees.x * DEG2RAD;
-        float yawRad = eulerDegrees.y * DEG2RAD;
-        float rollRad = eulerDegrees.z * DEG2RAD;
+        eulerAngles = degrees;
+        UpdateQuaternionFromEuler();
+    }
+    void SetEulerAngles(float x, float y, float z) { SetEulerAngles({x, y, z}); }
 
-        rotation = QuaternionFromEuler(pitchRad, yawRad, rollRad);
+    // EULER ANGLE FUNCTIONS FOR UI INTEGRATION (kinda nice to have yk)
+    void AddEulerAngles(Vector3 degrees)
+    {
+        eulerAngles = Vector3Add(eulerAngles, degrees);
+        WrapEulerAngles();
+        UpdateQuaternionFromEuler();
     }
 
-    void SetEulerAngles(float pitch, float yaw, float roll)
+    void AddEulerAngles(float x, float y, float z) { AddEulerAngles({x, y, z}); }
+
+    void UpdateQuaternionFromEuler()
     {
-        SetEulerAngles({pitch, yaw, roll});
+        float pitch = eulerAngles.x * DEG2RAD;
+        float yaw = eulerAngles.y * DEG2RAD;
+        float roll = eulerAngles.z * DEG2RAD;
+
+        Quaternion qZ = QuaternionFromAxisAngle({0, 0, 1}, roll);
+        Quaternion qX = QuaternionFromAxisAngle({1, 0, 0}, pitch);
+        Quaternion qY = QuaternionFromAxisAngle({0, 1, 0}, yaw);
+
+        rotation = QuaternionMultiply(QuaternionMultiply(qY, qX), qZ);
+        rotation = QuaternionNormalize(rotation);
     }
 
-    void AddEulerAngles(Vector3 eulerDegrees)
+    void UpdateEulerFromQuaternion()
     {
-        Vector3 currentEuler = GetEulerAngles();
-        Vector3 newEuler = Vector3Add(currentEuler, eulerDegrees);
-        SetEulerAngles(newEuler);
+        eulerAngles = GetEulerAngles();
     }
 
-    void AddEulerAngles(float pitch, float yaw, float roll)
+    void WrapEulerAngles()
     {
-        AddEulerAngles({pitch, yaw, roll});
+        eulerAngles.x = fmodf(eulerAngles.x + 180.0f, 360.0f) - 180.0f;
+        eulerAngles.y = fmodf(eulerAngles.y + 180.0f, 360.0f) - 180.0f;
+        eulerAngles.z = fmodf(eulerAngles.z + 180.0f, 360.0f) - 180.0f;
+    }
+
+    void SetEulerStorageMode(bool enable)
+    {
+        if (enable != useEulerStorage)
+        {
+            if (enable)
+                UpdateEulerFromQuaternion();
+            useEulerStorage = enable;
+        }
     }
 };
+
 struct CubeComponent : Component
 {
     CubeComponent() : Component(ComponentType::Cube, ComponentCategory::Object) {}
