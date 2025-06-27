@@ -20,6 +20,8 @@ int main()
     InitWindow(screenWidth, screenHeight, "3D Game raylib");
 
     rlImGuiSetup(true);
+    ImGuiIO &io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     Camera3D camera = {0};
     camera.position = Vector3{10.0f, 10.0f, 10.0f};
