@@ -53,6 +53,8 @@ void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, 
 
 void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities)
 {
+    // ImGui::DockSpaceOverViewport(ImGuiDockNodeFlags_PassthruCentralNode);
+
     ImGui::Begin("Entity Editor");
 
     if (*selectedEntity == nullptr)

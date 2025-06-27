@@ -9,6 +9,7 @@
 #include "../imgui/imgui.h"
 #include "../imgui/rlImGui.h"
 #include "../imgui/rlImGuiColors.h"
+#include "../imgui/imguiStyle.h"
 #include <raymath.h>
 #include <rlgl.h>
 
@@ -22,6 +23,7 @@ int main()
     rlImGuiSetup(true);
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    SetCustomImGuiStyle();
 
     Camera3D camera = {0};
     camera.position = Vector3{10.0f, 10.0f, 10.0f};
