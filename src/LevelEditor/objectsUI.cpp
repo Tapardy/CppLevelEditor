@@ -9,6 +9,7 @@
 #include <string>
 
 GizmoSystem ObjectUI::gizmoSystem;
+
 bool RenderRemoveComponentButton()
 {
     ImGui::SameLine();
@@ -40,21 +41,26 @@ void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, 
         return;
     }
 
-    static Vector3 *lastTarget = nullptr;
-    if (lastTarget != &transform->position)
+    static Vector3 *lastPositionTarget = nullptr;
+    static Quaternion *lastRotationTarget = nullptr;
+
+    bool targetsChanged = (lastPositionTarget != &transform->position) || (lastRotationTarget != &transform->rotation);
+
+    if (targetsChanged)
     {
-        gizmoSystem.SetTarget(&transform->position);
-        lastTarget = &transform->position;
+        gizmoSystem.SetTarget(&transform->position, &transform->rotation);
+        lastPositionTarget = &transform->position;
+        lastRotationTarget = &transform->rotation;
     }
 
-    gizmoSystem.Update(camera, mouseRay, transform->position);
+    gizmoSystem.Update(camera, mouseRay, transform->position, transform->rotation);
+
     gizmoSystem.Render(camera, mouseRay);
 }
 
 void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities)
 {
     // ImGui::DockSpaceOverViewport(ImGuiDockNodeFlags_PassthruCentralNode);
-
     ImGui::Begin("Entity Editor");
 
     if (*selectedEntity == nullptr)
@@ -163,14 +169,48 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
     {
         if (ImGui::CollapsingHeader("Transform Component", ImGuiTreeNodeFlags_DefaultOpen))
         {
+            ImGui::Text("Gizmo Mode:");
+            ImGui::SameLine();
+
+            GizmoMode currentMode = gizmoSystem.GetMode();
+            const char *modeNames[] = {"None", "Position", "Rotation"};
+            int currentModeIndex = static_cast<int>(currentMode);
+
+            if (ImGui::Combo("##GizmoMode", &currentModeIndex, modeNames, 3))
+            {
+                gizmoSystem.SetMode(static_cast<GizmoMode>(currentModeIndex));
+            }
+
+            if (ImGui::CollapsingHeader("Gizmo Settings"))
+            {
+                float snapStep, rotationSnap;
+                gizmoSystem.GetSnapStep(&snapStep);
+                gizmoSystem.GetRotationSnap(&rotationSnap);
+
+                if (ImGui::InputFloat("Position Snap", &snapStep, 0.01f, 0.1f, "%.3f"))
+                {
+                    gizmoSystem.SetSnapStep(snapStep);
+                }
+
+                if (ImGui::InputFloat("Rotation Snap (degrees)", &rotationSnap, 1.0f, 15.0f, "%.1f"))
+                {
+                    gizmoSystem.SetRotationSnap(rotationSnap);
+                }
+            }
+
+            ImGui::Separator();
+
+            // Position UI
             ImGui::Text("Position");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
 
-            if (gizmoSystem.IsActive() && gizmoSystem.GetTargetAddress() == &transform->position)
+            if (gizmoSystem.IsActive() &&
+                gizmoSystem.GetMode() == GizmoMode::POSITION &&
+                gizmoSystem.GetTargetPositionAddress() == &transform->position)
             {
                 ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
                 ImGui::SameLine();
-                ImGui::TextDisabled("[Gizmo]");
+                ImGui::TextDisabled("[Position Gizmo]");
             }
             else
             {
@@ -181,13 +221,23 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
             ImGui::Separator();
             ImGui::Text("Rotation");
 
+            if (gizmoSystem.IsActive() &&
+                gizmoSystem.GetMode() == GizmoMode::ROTATION &&
+                gizmoSystem.GetTargetRotationAddress() == &transform->rotation)
+            {
+                ImGui::TextDisabled("[Rotation Gizmo Active]");
+            }
+
             // Get current euler angles for display/editing
             Vector3 eulerAngles = transform->GetEulerAngles();
 
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             if (ImGui::InputFloat3("##Rotation", &eulerAngles.x, "%.2f"))
             {
-                transform->SetEulerAngles(eulerAngles);
+                if (!(gizmoSystem.IsActive() && gizmoSystem.GetMode() == GizmoMode::ROTATION))
+                {
+                    transform->SetEulerAngles(eulerAngles);
+                }
             }
 
             ImGui::TextDisabled("(Pitch, Yaw, Roll in degrees)");
@@ -357,12 +407,15 @@ void ObjectUI::RenderCubeComponentUI(CubeComponent *cube)
                 cube->size.y * transform->scale.y,
                 cube->size.z * transform->scale.z};
 
-            ImGui::TextDisabled("(Scaled: %.2f, %.2f, %.2f)",
-                                scaledSize.x, scaledSize.y, scaledSize.z);
+            ImGui::TextDisabled("(Scaled: %.2f, %.2f, %.2f)", scaledSize.x, scaledSize.y, scaledSize.z);
         }
 
         ImGui::Text("Color");
-        ImGui::ColorEdit4("##Color", (float *)&cube->color);
+        ImVec4 colorVec = rlImGuiColors::Convert(cube->color);
+        if (ImGui::ColorEdit4("##Color", (float *)&colorVec))
+        {
+            cube->color = rlImGuiColors::Convert(colorVec);
+        }
     }
 }
 
@@ -383,11 +436,14 @@ void ObjectUI::RenderSphereComponentUI(SphereComponent *sphere)
         {
             float avgScale = (transform->scale.x + transform->scale.y + transform->scale.z) / 3.0f;
             float scaledRadius = sphere->radius * avgScale;
-
             ImGui::TextDisabled("(Scaled: %.2f)", scaledRadius);
         }
 
         ImGui::Text("Color");
-        ImGui::ColorEdit4("##Color", (float *)&sphere->color);
+        ImVec4 colorVec = rlImGuiColors::Convert(sphere->color);
+        if (ImGui::ColorEdit4("##Color", (float *)&colorVec))
+        {
+            sphere->color = rlImGuiColors::Convert(colorVec);
+        }
     }
 }

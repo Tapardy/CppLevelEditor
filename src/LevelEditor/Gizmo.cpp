@@ -26,17 +26,27 @@ void GizmoSystem::SetSnapStep(float newSnapStep)
 }
 
 /**
- * @brief Sets the target position for the gizmo system and determines the
- *        mode based on whether the target is set or not.
+ * @brief Sets the snap step used for gizmo rotation.
  *
- * If the target is set (i.e. not nullptr), the gizmo system is activated with
- * the mode set to POSITION. If the target is not set, the gizmo system is
- * deactivated and the mode is set to NONE.
+ * This method updates the snap step value, which determines the incremental
+ * rotation applied to the gizmo during dragging.
  *
- * @param position The target position to set or nullptr to deactivate the
- *                 gizmo system.
+ * @param degrees The desired snap step value for gizmo rotation.
  */
-void GizmoSystem::SetTarget(Vector3 *position)
+void GizmoSystem::SetRotationSnap(float degrees)
+{
+    rotationSnapDegrees = (degrees > 0.0f) ? degrees : 1.0f;
+}
+
+/**
+ * @brief Sets the target position for the gizmo system.
+ *
+ * This method updates the target position pointer, which determines the current
+ * editing target for the gizmo.
+ *
+ * @param position Pointer to the target position vector.
+ */
+void GizmoSystem::SetPositionTarget(Vector3 *position)
 {
     targetPosition = position;
     mode = (position != nullptr) ? GizmoMode::POSITION : GizmoMode::NONE;
@@ -45,15 +55,80 @@ void GizmoSystem::SetTarget(Vector3 *position)
 }
 
 /**
- * @brief Deactivates the gizmo system, resetting its state.
+ * @brief Sets the target rotation for the gizmo system.
  *
- * This method effectively deactivates the gizmo,
- * making it inactive until a new target is set.
+ * This method updates the target rotation pointer, which determines the current
+ * editing target for the gizmo.
+ *
+ * @param rotation Pointer to the target rotation quaternion.
+ */
+void GizmoSystem::SetRotationTarget(Quaternion *rotation)
+{
+    targetRotation = rotation;
+    mode = (rotation != nullptr) ? GizmoMode::ROTATION : GizmoMode::NONE;
+    isDragging = false;
+    selectedAxis = -1;
+}
+
+/**
+ * @brief Sets the target position and rotation for the gizmo system.
+ *
+ * This method updates the target position and rotation pointers, which determine
+ * the current editing target for the gizmo.
+ *
+ * @param position Pointer to the target position vector.
+ * @param rotation Pointer to the target rotation quaternion.
+ */
+void GizmoSystem::SetTarget(Vector3 *position, Quaternion *rotation)
+{
+    targetPosition = position;
+    targetRotation = rotation;
+
+    if (position && rotation)
+    {
+        mode = GizmoMode::POSITION; // Default to position mode when both are available
+    }
+    else if (position)
+    {
+        mode = GizmoMode::POSITION;
+    }
+    else if (rotation)
+    {
+        mode = GizmoMode::ROTATION;
+    }
+    else
+    {
+        mode = GizmoMode::NONE;
+    }
+
+    isDragging = false;
+    selectedAxis = -1;
+}
+
+void GizmoSystem::SetMode(GizmoMode newMode)
+{
+    if (newMode == GizmoMode::POSITION && !targetPosition)
+        return;
+    if (newMode == GizmoMode::ROTATION && !targetRotation)
+        return;
+
+    mode = newMode;
+    isDragging = false;
+    selectedAxis = -1;
+}
+
+/**
+ * @brief Deactivates the gizmo system.
+ *
+ * Resets the gizmo system to its default state, which means no target position
+ * or rotation, mode set to NONE, and all other flags reset to their default
+ * values.
  */
 void GizmoSystem::Deactivate()
 {
     mode = GizmoMode::NONE;
     targetPosition = nullptr;
+    targetRotation = nullptr;
     isDragging = false;
     selectedAxis = -1;
     lastAppliedDelta = 0.0f;
@@ -61,6 +136,9 @@ void GizmoSystem::Deactivate()
 
 /**
  * @brief Returns a unit vector representing the direction of the specified axis of the gizmo.
+ *
+ * This method returns a unit vector representing the direction of the specified axis
+ *
  * @param axis The axis to get the direction for (0 = X, 1 = Y, 2 = Z)
  * @return A unit vector representing the direction of the specified axis
  */
@@ -80,8 +158,7 @@ Vector3 GizmoSystem::GetAxisDirection(int axis) const
  * @brief Returns a ray representing the specified axis of the gizmo.
  *
  * The ray originates at the target position of the gizmo and extends in the
- * direction of the specified axis. The axis is represented as an integer where
- * 0 corresponds to the X-axis, 1 to the Y-axis, and 2 to the Z-axis.
+ * direction of the specified axis.
  *
  * @param axis The axis index (0 = X, 1 = Y, 2 = Z).
  * @return A Ray structure with the position set to the target position and the
@@ -90,13 +167,25 @@ Vector3 GizmoSystem::GetAxisDirection(int axis) const
 Ray GizmoSystem::GetAxisRay(int axis) const
 {
     Ray axisRay;
-    axisRay.position = *targetPosition;
+    if (mode == GizmoMode::POSITION && targetPosition)
+    {
+        axisRay.position = *targetPosition;
+    }
+    else if (mode == GizmoMode::ROTATION && targetRotation && targetPosition)
+    {
+        axisRay.position = *targetPosition;
+    }
+    else
+    {
+        axisRay.position = {0, 0, 0};
+    }
     axisRay.direction = GetAxisDirection(axis);
     return axisRay;
 }
 
 /**
  * @brief Draws an arrow from start to end position with specified dimensions
+ *
  * @param start Starting position of the arrow
  * @param end Ending position of the arrow
  * @param radius Radius of the arrow shaft
@@ -111,18 +200,57 @@ void GizmoSystem::DrawArrow(Vector3 start, Vector3 end, float radius, float head
     float totalLength = Vector3Distance(start, end);
     float shaftLength = totalLength - headLength;
 
-    // Calculate shaft end position
     Vector3 shaftEnd = Vector3Add(start, Vector3Scale(direction, shaftLength));
 
-    // Apply highlight scaling if needed
     float currentRadius = highlighted ? radius * highlightScale : radius;
     float currentHeadRadius = highlighted ? headRadius * highlightScale : headRadius;
 
-    // Draw shaft as cylinder
     DrawCylinderEx(start, shaftEnd, currentRadius, currentRadius, 8, color);
-
-    // Draw arrow head as cone
     DrawCylinderEx(shaftEnd, end, currentHeadRadius, 0.0f, 8, color);
+}
+
+/**
+ * @brief Draws a rotation circle around the specified axis at the target position.
+ *
+ * This function visualizes a circular rotation gizmo around a given axis, centered on the target position.
+ *
+ * @param axis The axis around which the rotation circle is drawn.
+ * @param color The color used to draw the circle.
+ * @param highlighted Whether the circle should be drawn in a highlighted state.
+ */
+
+void GizmoSystem::DrawRotationCircle(int axis, Color color, bool highlighted)
+{
+    if (!targetPosition)
+        return;
+
+    Vector3 center = *targetPosition;
+    Vector3 axisDir = GetAxisDirection(axis);
+
+    Vector3 up = {0, 1, 0};
+    Vector3 right = Vector3Normalize(Vector3CrossProduct(axisDir, up));
+
+    if (Vector3Length(right) < 0.01f)
+    {
+        up = {1, 0, 0};
+        right = Vector3Normalize(Vector3CrossProduct(axisDir, up));
+    }
+    up = Vector3Normalize(Vector3CrossProduct(right, axisDir));
+
+    float currentRadius = circleRadius;
+    float currentThickness = highlighted ? circleThickness * highlightScale : circleThickness;
+
+    for (int i = 0; i < circleSegments; i++)
+    {
+        float angle1 = (float)i / circleSegments * 2.0f * PI;
+        float angle2 = (float)(i + 1) / circleSegments * 2.0f * PI;
+
+        Vector3 p1 = Vector3Add(center, Vector3Add(Vector3Scale(right, cosf(angle1) * currentRadius), Vector3Scale(up, sinf(angle1) * currentRadius)));
+
+        Vector3 p2 = Vector3Add(center, Vector3Add(Vector3Scale(right, cosf(angle2) * currentRadius), Vector3Scale(up, sinf(angle2) * currentRadius)));
+
+        DrawCylinderEx(p1, p2, currentThickness, currentThickness, 4, color);
+    }
 }
 
 /**
@@ -134,7 +262,7 @@ void GizmoSystem::DrawArrow(Vector3 start, Vector3 end, float radius, float head
  */
 bool GizmoSystem::CheckAxisHover(const Ray &mouseRay, int axis, float &distance) const
 {
-    if (!targetPosition)
+    if (mode != GizmoMode::POSITION || !targetPosition)
         return false;
 
     Vector3 axisDir = GetAxisDirection(axis);
@@ -176,7 +304,50 @@ bool GizmoSystem::CheckAxisHover(const Ray &mouseRay, int axis, float &distance)
 }
 
 /**
+ * @brief Checks whether the mouse ray is hovering over the rotation circle for a given axis.
+ *
+ * @param mouseRay The ray originating from the mouse's screen position.
+ * @param axis The axis around which the rotation circle is centered (0 = X, 1 = Y, 2 = Z).
+ * @param distance Output parameter that receives the distance from the ray origin to the intersection point on the circle's plane if a hover is detected.
+ * @return True if the mouse ray is close enough to the rotation circle to be considered hovering,
+ * false otherwise.
+ */
+bool GizmoSystem::CheckCircleHover(const Ray &mouseRay, int axis, float &distance) const
+{
+    if (mode != GizmoMode::ROTATION || !targetPosition)
+        return false;
+
+    Vector3 center = *targetPosition;
+    Vector3 axisDir = GetAxisDirection(axis);
+
+    // Create plane perpendicular to axis
+    float denom = Vector3DotProduct(mouseRay.direction, axisDir);
+    if (fabs(denom) < 0.0001f)
+        return false;
+
+    Vector3 rayToPlane = Vector3Subtract(center, mouseRay.position);
+    float t = Vector3DotProduct(rayToPlane, axisDir) / denom;
+    if (t < 0.001f)
+        return false;
+
+    Vector3 intersection = Vector3Add(mouseRay.position, Vector3Scale(mouseRay.direction, t));
+    Vector3 toIntersection = Vector3Subtract(intersection, center);
+    float distFromCenter = Vector3Length(toIntersection);
+
+    // Check if intersection is near the circle
+    float tolerance = circleThickness * 8.0f; // More generous tolerance for easier selection
+    if (fabs(distFromCenter - circleRadius) < tolerance)
+    {
+        distance = t;
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * @brief Calculates the movement along a given axis based on the mouse ray intersection with a plane perpendicular to the axis
+ *
  * @param mouseRay The ray from the mouse position and direction
  * @param axis The axis to calculate the movement for (0 = X, 1 = Y, 2 = Z)
  * @param camera The active camera
@@ -215,19 +386,131 @@ float GizmoSystem::GetMovementAlongAxis(const Ray &mouseRay, int axis, Camera ca
 }
 
 /**
- * @brief Updates the gizmo system based on the current mouse state and camera
- * @param camera The active camera
- * @param mouseRay The ray from the mouse position and direction
- * @param position The current position of the gizmo target
- * @return True if the gizmo target position changed, false otherwise
+ * @brief Normalizes an angle to the range [-PI, PI].
+ *
+ * This function adjusts the provided angle by adding or subtracting
+ * multiples of 2*PI to ensure it falls within the standard range for
+ * angles, which is between -PI and PI.
+ *
+ * @param angle The angle in radians to be normalized.
+ * @return The normalized angle in radians within the range [-PI, PI].
  */
-bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position)
+float GizmoSystem::NormalizeAngle(float angle) const
 {
-    if (!targetPosition || mode == GizmoMode::NONE)
+    while (angle > PI)
+        angle -= 2.0f * PI;
+    while (angle < -PI)
+        angle += 2.0f * PI;
+    return angle;
+}
+
+/**
+ * @brief Calculates the signed angle between two vectors in radians.
+ *
+ * This function calculates the angle between two vectors in 3D space.
+ *
+ * @param a The first vector.
+ * @param b The second vector.
+ * @param normal The normal vector of the plane in which the angle is calculated.
+ * @return The signed angle between the two vectors in radians.
+ */
+float GizmoSystem::GetAngleBetweenVectors(Vector3 a, Vector3 b, Vector3 normal) const
+{
+    Vector3 normA = Vector3Normalize(a);
+    Vector3 normB = Vector3Normalize(b);
+
+    float dot = Vector3DotProduct(normA, normB);
+    dot = fmaxf(-1.0f, fminf(1.0f, dot)); // Clamp to avoid floating point errors
+
+    float angle = acosf(dot);
+
+    Vector3 cross = Vector3CrossProduct(normA, normB);
+    if (Vector3DotProduct(cross, normal) < 0)
+    {
+        angle = -angle;
+    }
+
+    return angle;
+}
+
+/**
+ * @brief Calculates the point on the circle where the mouse ray intersects with the plane of the circle.
+ *
+ * This function is used by the rotation gizmo to determine the point on the circle that the user is
+ * currently hovering over.
+ *
+ * @param mouseRay The ray from the camera to the mouse position.
+ * @param axis The axis of rotation.
+ * @param camera The camera.
+ * @return The point on the circle where the mouse ray intersects with the plane of the circle.
+ */
+Vector3 GizmoSystem::ProjectMouseToCircle(const Ray &mouseRay, int axis, Camera camera) const
+{
+    if (!targetPosition)
+        return {0, 0, 0};
+
+    Vector3 center = *targetPosition;
+    Vector3 axisDir = GetAxisDirection(axis);
+
+    float denom = Vector3DotProduct(mouseRay.direction, axisDir);
+    if (fabs(denom) < 0.0001f)
+        return dragStartMouseOnCircle;
+
+    Vector3 rayToPlane = Vector3Subtract(center, mouseRay.position);
+    float t = Vector3DotProduct(rayToPlane, axisDir) / denom;
+    if (t < 0.001f)
+        return dragStartMouseOnCircle;
+
+    Vector3 intersection = Vector3Add(mouseRay.position, Vector3Scale(mouseRay.direction, t));
+    Vector3 toIntersection = Vector3Subtract(intersection, center);
+
+    float length = Vector3Length(toIntersection);
+    if (length < 0.001f)
+        return dragStartMouseOnCircle;
+
+    return Vector3Scale(toIntersection, circleRadius / length);
+}
+
+/**
+ * @brief Calculates the rotation around the given axis that the user is currently attempting to apply with the mouse.
+ *
+ * This function is used by the rotation gizmo to determine the rotation the user is
+ * currently trying to apply.
+ *
+ * @param mouseRay The ray from the camera to the mouse position.
+ * @param axis The axis of rotation.
+ * @param camera The camera.
+ * @return The rotation around the axis in radians.
+ */
+float GizmoSystem::GetRotationAroundAxis(const Ray &mouseRay, int axis, Camera camera) const
+{
+    if (!targetPosition)
+        return 0.0f;
+
+    Vector3 axisDir = GetAxisDirection(axis);
+    Vector3 currentMouseOnCircle = ProjectMouseToCircle(mouseRay, axis, camera);
+
+    return GetAngleBetweenVectors(dragStartMouseOnCircle, currentMouseOnCircle, axisDir);
+}
+
+/**
+ * @brief Updates the gizmo system with the current mouse state and applies any transformations to the target object.
+ *
+ * This function should be called once per frame, and should be provided with the current mouse ray and the camera.
+ * The method will return true if the gizmo system changed the target object in any way.
+ *
+ * @param camera The camera used to render the scene.
+ * @param mouseRay The ray from the camera to the mouse position.
+ * @param position The position of the target object to be updated.
+ * @param rotation The rotation of the target object to be updated.
+ * @return true if the gizmo system changed the target object, false otherwise.
+ */
+bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation)
+{
+    if (mode == GizmoMode::NONE)
         return false;
 
     bool changed = false;
-
     bool isPressed = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
     bool isReleased = IsMouseButtonReleased(MOUSE_LEFT_BUTTON);
 
@@ -239,7 +522,18 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position)
         for (int i = 0; i < 3; i++)
         {
             float distance;
-            if (CheckAxisHover(mouseRay, i, distance) && distance < minDistance && distance > 0)
+            bool hit = false;
+
+            if (mode == GizmoMode::POSITION)
+            {
+                hit = CheckAxisHover(mouseRay, i, distance);
+            }
+            else if (mode == GizmoMode::ROTATION)
+            {
+                hit = CheckCircleHover(mouseRay, i, distance);
+            }
+
+            if (hit && distance < minDistance && distance > 0)
             {
                 minDistance = distance;
                 closestAxis = i;
@@ -250,8 +544,19 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position)
         {
             isDragging = true;
             selectedAxis = closestAxis;
-            dragStartPos = *targetPosition;
-            dragStartMovement = GetMovementAlongAxis(mouseRay, selectedAxis, camera);
+
+            if (mode == GizmoMode::POSITION && targetPosition)
+            {
+                dragStartPos = *targetPosition;
+                dragStartMovement = GetMovementAlongAxis(mouseRay, selectedAxis, camera);
+            }
+            else if (mode == GizmoMode::ROTATION && targetRotation && targetPosition)
+            {
+                dragStartRotation = *targetRotation;
+                dragStartMouseOnCircle = ProjectMouseToCircle(mouseRay, selectedAxis, camera);
+                dragStartAngle = 0.0f;
+            }
+
             lastAppliedDelta = 0.0f;
         }
     }
@@ -263,30 +568,52 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position)
     }
     else if (isDragging && selectedAxis != -1)
     {
-        float currentMovement = GetMovementAlongAxis(mouseRay, selectedAxis, camera);
-        float totalRawDelta = currentMovement - dragStartMovement;
-        float snappedTotal = floorf((totalRawDelta + snapStep * 0.5f) / snapStep) * snapStep;
-
-        const float epsilon = 0.0001f;
-        if (fabs(snappedTotal - lastAppliedDelta) > epsilon)
+        if (mode == GizmoMode::POSITION && targetPosition)
         {
-            Vector3 newPosition = dragStartPos;
-            switch (selectedAxis)
+            float currentMovement = GetMovementAlongAxis(mouseRay, selectedAxis, camera);
+            float totalRawDelta = currentMovement - dragStartMovement;
+            float snappedTotal = floorf((totalRawDelta + snapStep * 0.5f) / snapStep) * snapStep;
+
+            const float epsilon = 0.0001f;
+            if (fabs(snappedTotal - lastAppliedDelta) > epsilon)
             {
-            case 0:
-                newPosition.x = dragStartPos.x + snappedTotal;
-                break;
-            case 1:
-                newPosition.y = dragStartPos.y + snappedTotal;
-                break;
-            case 2:
-                newPosition.z = dragStartPos.z + snappedTotal;
-                break;
+                Vector3 newPosition = dragStartPos;
+                switch (selectedAxis)
+                {
+                case 0:
+                    newPosition.x = dragStartPos.x + snappedTotal;
+                    break;
+                case 1:
+                    newPosition.y = dragStartPos.y + snappedTotal;
+                    break;
+                case 2:
+                    newPosition.z = dragStartPos.z + snappedTotal;
+                    break;
+                }
+                position = newPosition;
+                *targetPosition = newPosition;
+                lastAppliedDelta = snappedTotal;
+                changed = true;
             }
-            position = newPosition;
-            *targetPosition = newPosition;
-            lastAppliedDelta = snappedTotal;
-            changed = true;
+        }
+        else if (mode == GizmoMode::ROTATION && targetRotation)
+        {
+            float currentAngle = GetRotationAroundAxis(mouseRay, selectedAxis, camera);
+            float totalAngleDegrees = currentAngle * RAD2DEG;
+            float snappedAngleDegrees = floorf((totalAngleDegrees + rotationSnapDegrees * 0.5f) / rotationSnapDegrees) * rotationSnapDegrees;
+
+            const float epsilon = 0.1f;
+            if (fabs(snappedAngleDegrees - lastAppliedDelta) > epsilon)
+            {
+                Vector3 axisDir = GetAxisDirection(selectedAxis);
+                Quaternion deltaRotation = QuaternionFromAxisAngle(axisDir, snappedAngleDegrees * DEG2RAD);
+                Quaternion newRotation = QuaternionMultiply(deltaRotation, dragStartRotation);
+
+                rotation = newRotation;
+                *targetRotation = newRotation;
+                lastAppliedDelta = snappedAngleDegrees;
+                changed = true;
+            }
         }
     }
 
@@ -294,17 +621,17 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position)
 }
 
 /**
+ * @brief Renders the gizmo in the 3D scene.
+ *
  * Renders the gizmo in the 3D scene using the provided camera and mouse ray.
- * Highlights the axis being hovered over or dragged, if any, and draws the
- * gizmo's axes as arrows with cone heads. Displays the current axis
- * being dragged along with snapping information if dragging is active.
+ * Highlights the axis being hovered over or dragged.
  *
  * @param camera The camera used for rendering.
  * @param mouseRay The ray from the mouse used to determine hover/drag state.
  */
 void GizmoSystem::Render(Camera camera, Ray mouseRay)
 {
-    if (!targetPosition || mode == GizmoMode::NONE)
+    if (mode == GizmoMode::NONE)
         return;
 
     int hoveredAxis = -1;
@@ -314,7 +641,18 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
         for (int i = 0; i < 3; i++)
         {
             float distance;
-            if (CheckAxisHover(mouseRay, i, distance) && distance < minDistance && distance > 0)
+            bool hit = false;
+
+            if (mode == GizmoMode::POSITION)
+            {
+                hit = CheckAxisHover(mouseRay, i, distance);
+            }
+            else if (mode == GizmoMode::ROTATION)
+            {
+                hit = CheckCircleHover(mouseRay, i, distance);
+            }
+
+            if (hit && distance < minDistance && distance > 0)
             {
                 minDistance = distance;
                 hoveredAxis = i;
@@ -322,52 +660,82 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
         }
     }
 
-    // Draw arrows for each axis
-    for (int i = 0; i < 3; i++)
+    if (mode == GizmoMode::POSITION && targetPosition)
     {
-        bool isHighlighted = (isDragging && selectedAxis == i) || (!isDragging && hoveredAxis == i);
+        for (int i = 0; i < 3; i++)
+        {
+            bool isHighlighted = (isDragging && selectedAxis == i) || (!isDragging && hoveredAxis == i);
+            Vector3 direction = GetAxisDirection(i);
+            Vector3 endPoint = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength));
+            DrawArrow(*targetPosition, endPoint, axisRadius, arrowHeadLength, arrowHeadRadius, axisColors[i], isHighlighted);
+        }
 
-        Vector3 direction = GetAxisDirection(i);
-        Vector3 endPoint = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength));
+        DrawSphere(*targetPosition, axisRadius * 2.0f, WHITE);
 
-        DrawArrow(*targetPosition, endPoint, axisRadius, arrowHeadLength, arrowHeadRadius, axisColors[i], isHighlighted);
+        if (isDragging)
+        {
+            const char *axisNames[] = {"X", "Y", "Z"};
+            DrawText(TextFormat("Dragging %s axis (snapStep=%.3f)", axisNames[selectedAxis], snapStep), 10, 30, 20, BLACK);
+        }
     }
-
-    // Draw center sphere
-    DrawSphere(*targetPosition, axisRadius * 2.0f, WHITE);
-
-    if (isDragging)
+    else if (mode == GizmoMode::ROTATION && targetPosition)
     {
-        const char *axisNames[] = {"X", "Y", "Z"};
-        DrawText(TextFormat("Dragging %s axis (snapStep=%.3f)", axisNames[selectedAxis], snapStep), 10, 30, 20, BLACK);
+        for (int i = 0; i < 3; i++)
+        {
+            bool isHighlighted = (isDragging && selectedAxis == i) || (!isDragging && hoveredAxis == i);
+            DrawRotationCircle(i, axisColors[i], isHighlighted);
+        }
+
+        DrawSphere(*targetPosition, circleThickness * 3.0f, WHITE);
+
+        if (isDragging)
+        {
+            const char *axisNames[] = {"X", "Y", "Z"};
+            DrawText(TextFormat("Rotating around %s axis (snap=%.1f°)", axisNames[selectedAxis], rotationSnapDegrees), 10, 30, 20, BLACK);
+        }
     }
 }
 
 /**
+ * @brief Checks if the given mouse ray intersects with any of the gizmo axes.
+ *
  * Returns true if the given mouseRay intersects with any of the gizmo axes.
  * Will not return true if the gizmo is not active or if the mode is NONE.
+ *
  * @param mouseRay The ray from the mouse to check.
  * @return True if the ray intersects with any of the gizmo axes.
  */
 bool GizmoSystem::CheckForAxisClick(const Ray &mouseRay) const
 {
-    if (!targetPosition || mode == GizmoMode::NONE)
+    if (mode == GizmoMode::NONE)
         return false;
 
     for (int i = 0; i < 3; i++)
     {
         float distance;
-        if (CheckAxisHover(mouseRay, i, distance))
+        bool hit = false;
+
+        if (mode == GizmoMode::POSITION)
         {
-            return true;
+            hit = CheckAxisHover(mouseRay, i, distance);
         }
+        else if (mode == GizmoMode::ROTATION)
+        {
+            hit = CheckCircleHover(mouseRay, i, distance);
+        }
+
+        if (hit)
+            return true;
     }
     return false;
 }
 
 /**
+ * @brief Checks if the given mouse ray intersects with any of the gizmo axes.
+ *
  * Returns true if the given mouseRay intersects with any of the gizmo axes.
  * Will not return true if the gizmo is not active or if the mode is NONE.
+ *
  * @param mouseRay The ray from the mouse to check.
  * @return True if the ray intersects with any of the gizmo axes.
  */
