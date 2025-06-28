@@ -253,7 +253,7 @@ struct CubeComponent : Component
 {
     CubeComponent() : Component(ComponentType::Cube, ComponentCategory::Object) {}
     Vector3 size = {1, 1, 1};
-    Color color = RED;
+    Color color = GRAY;
 
     Vector3 GetScaledSize() const
     {
@@ -287,7 +287,7 @@ struct SphereComponent : Component
 {
     SphereComponent() : Component(ComponentType::Sphere, ComponentCategory::Object) {}
     float radius = 1.0f;
-    Color color = RED;
+    Color color = GRAY;
 
     float GetScaledRadius() const
     {

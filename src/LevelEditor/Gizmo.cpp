@@ -39,6 +39,19 @@ void GizmoSystem::SetRotationSnap(float degrees)
 }
 
 /**
+ * @brief Sets the snap step used for gizmo scaling.
+ *
+ * This method updates the snap step value, which determines the incremental
+ * scaling applied to the gizmo during dragging.
+ *
+ * @param step The desired snap step value for gizmo scaling.
+ */
+void GizmoSystem::SetScaleSnap(float step)
+{
+    scaleSnapStep = (step > 0.0f) ? step : 0.01f;
+}
+
+/**
  * @brief Sets the target position for the gizmo system.
  *
  * This method updates the target position pointer, which determines the current
@@ -70,6 +83,14 @@ void GizmoSystem::SetRotationTarget(Quaternion *rotation)
     selectedAxis = -1;
 }
 
+void GizmoSystem::SetScaleTarget(Vector3 *scale)
+{
+    targetScale = scale;
+    mode = (scale != nullptr) ? GizmoMode::SCALE : GizmoMode::NONE;
+    isDragging = false;
+    selectedAxis = -1;
+}
+
 /**
  * @brief Sets the target position and rotation for the gizmo system.
  *
@@ -78,15 +99,17 @@ void GizmoSystem::SetRotationTarget(Quaternion *rotation)
  *
  * @param position Pointer to the target position vector.
  * @param rotation Pointer to the target rotation quaternion.
+ * @param scale Pointer to the target scale vector.
  */
-void GizmoSystem::SetTarget(Vector3 *position, Quaternion *rotation)
+void GizmoSystem::SetTarget(Vector3 *position, Quaternion *rotation, Vector3 *scale)
 {
     targetPosition = position;
     targetRotation = rotation;
+    targetScale = scale;
 
-    if (position && rotation)
+    if (position && rotation && scale)
     {
-        mode = GizmoMode::POSITION; // Default to position mode when both are available
+        mode = GizmoMode::POSITION; // Default to position mode when all are available
     }
     else if (position)
     {
@@ -95,6 +118,10 @@ void GizmoSystem::SetTarget(Vector3 *position, Quaternion *rotation)
     else if (rotation)
     {
         mode = GizmoMode::ROTATION;
+    }
+    else if (scale)
+    {
+        mode = GizmoMode::SCALE;
     }
     else
     {
@@ -110,6 +137,8 @@ void GizmoSystem::SetMode(GizmoMode newMode)
     if (newMode == GizmoMode::POSITION && !targetPosition)
         return;
     if (newMode == GizmoMode::ROTATION && !targetRotation)
+        return;
+    if (newMode == GizmoMode::SCALE && !targetScale)
         return;
 
     mode = newMode;
@@ -129,6 +158,7 @@ void GizmoSystem::Deactivate()
     mode = GizmoMode::NONE;
     targetPosition = nullptr;
     targetRotation = nullptr;
+    targetScale = nullptr;
     isDragging = false;
     selectedAxis = -1;
     lastAppliedDelta = 0.0f;
@@ -161,8 +191,7 @@ Vector3 GizmoSystem::GetAxisDirection(int axis) const
  * direction of the specified axis.
  *
  * @param axis The axis index (0 = X, 1 = Y, 2 = Z).
- * @return A Ray structure with the position set to the target position and the
- * direction set to the axis direction.
+ * @return A Ray structure with the position set to the target position and the direction set to the axis direction.
  */
 Ray GizmoSystem::GetAxisRay(int axis) const
 {
@@ -172,6 +201,10 @@ Ray GizmoSystem::GetAxisRay(int axis) const
         axisRay.position = *targetPosition;
     }
     else if (mode == GizmoMode::ROTATION && targetRotation && targetPosition)
+    {
+        axisRay.position = *targetPosition;
+    }
+    else if (mode == GizmoMode::SCALE && targetScale && targetPosition)
     {
         axisRay.position = *targetPosition;
     }
@@ -254,10 +287,38 @@ void GizmoSystem::DrawRotationCircle(int axis, Color color, bool highlighted)
 }
 
 /**
+ * @brief Draws a scale axis with a line and a box at the end.
+ *
+ * @param axis The axis index determining the direction of the scale axis.
+ * @param color The color used to draw the axis line and box.
+ * @param highlighted Whether the axis should be drawn in a highlighted state.
+ */
+void GizmoSystem::DrawScaleAxis(int axis, Color color, bool highlighted)
+{
+    if (!targetPosition)
+        return;
+
+    Vector3 direction = GetAxisDirection(axis);
+    Vector3 lineEnd = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength));
+
+    float currentRadius = highlighted ? axisRadius * highlightScale : axisRadius;
+    float currentBoxSize = highlighted ? scaleBoxSize * highlightScale : scaleBoxSize;
+
+    // Draw the axis line
+    DrawCylinderEx(*targetPosition, lineEnd, currentRadius, currentRadius, 8, color);
+
+    // Draw the scale box at the end
+    Vector3 boxCenter = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength));
+    DrawCube(boxCenter, currentBoxSize, currentBoxSize, currentBoxSize, color);
+}
+
+/**
  * @brief Checks if the given axis is hovered by the mouse ray
+ *
  * @param mouseRay The ray from the mouse position and direction
  * @param axis The axis to check (0 = X, 1 = Y, 2 = Z)
  * @param distance The distance from the mouse ray to the axis if it is hovered
+ *
  * @return True if the axis is hovered, false otherwise
  */
 bool GizmoSystem::CheckAxisHover(const Ray &mouseRay, int axis, float &distance) const
@@ -309,8 +370,7 @@ bool GizmoSystem::CheckAxisHover(const Ray &mouseRay, int axis, float &distance)
  * @param mouseRay The ray originating from the mouse's screen position.
  * @param axis The axis around which the rotation circle is centered (0 = X, 1 = Y, 2 = Z).
  * @param distance Output parameter that receives the distance from the ray origin to the intersection point on the circle's plane if a hover is detected.
- * @return True if the mouse ray is close enough to the rotation circle to be considered hovering,
- * false otherwise.
+ * @return True if the mouse ray is close enough to the rotation circle to be considered hovering, false otherwise.
  */
 bool GizmoSystem::CheckCircleHover(const Ray &mouseRay, int axis, float &distance) const
 {
@@ -343,6 +403,54 @@ bool GizmoSystem::CheckCircleHover(const Ray &mouseRay, int axis, float &distanc
     }
 
     return false;
+}
+
+/**
+ * @brief Checks whether the mouse ray is hovering over the scale box at the end of the given axis.
+ *
+ * @param mouseRay The ray from the mouse's screen position.
+ * @param axis The axis around which the scale box is centered (0 = X, 1 = Y, 2 = Z).
+ * @param distance Output parameter that receives the distance from the ray origin to the intersection point on the scale box's plane if a hover is detected.
+ * @return True if the mouse ray is close enough to the scale box to be considered hovering, false otherwise.
+ */
+bool GizmoSystem::CheckScaleBoxHover(const Ray &mouseRay, int axis, float &distance) const
+{
+    if (mode != GizmoMode::SCALE || !targetPosition)
+        return false;
+
+    Vector3 direction = GetAxisDirection(axis);
+    Vector3 boxCenter = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength));
+
+    RayCollision collision = GetRayCollisionSphere(mouseRay, boxCenter, scaleBoxSize);
+    if (collision.hit)
+    {
+        distance = collision.distance;
+        return true;
+    }
+
+    const int segments = 10;
+    float minDist = FLT_MAX;
+    bool hit = false;
+
+    for (int i = 0; i <= segments; i++)
+    {
+        float t = (float)i / segments;
+        Vector3 axisPoint = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength * t));
+
+        Vector3 rayToAxis = Vector3Subtract(axisPoint, mouseRay.position);
+        float projection = Vector3DotProduct(rayToAxis, mouseRay.direction);
+        Vector3 closestOnRay = Vector3Add(mouseRay.position, Vector3Scale(mouseRay.direction, projection));
+
+        float dist = Vector3Distance(axisPoint, closestOnRay);
+        if (dist < axisRadius * 3.0f && dist < minDist)
+        {
+            minDist = dist;
+            distance = projection;
+            hit = true;
+        }
+    }
+
+    return hit;
 }
 
 /**
@@ -383,6 +491,48 @@ float GizmoSystem::GetMovementAlongAxis(const Ray &mouseRay, int axis, Camera ca
     Vector3 diff = Vector3Subtract(intersection, dragStartPos);
 
     return Vector3DotProduct(diff, axisDir);
+}
+
+/**
+ * @brief Calculates the scale along a given axis based on the mouse ray intersection with a plane perpendicular to the axis
+ *
+ * @param mouseRay The ray from the mouse position and direction
+ * @param axis The axis to calculate the scale for (0 = X, 1 = Y, 2 = Z)
+ * @param camera The active camera
+ * @return The scale relative to the starting position
+ */
+float GizmoSystem::GetScaleAlongAxis(const Ray &mouseRay, int axis, Camera camera) const
+{
+    if (!targetPosition)
+        return 0.0f;
+
+    Vector3 axisDir = GetAxisDirection(axis);
+
+    // Create a plane perpendicular to the axis
+    Vector3 up = {0, 1, 0};
+    Vector3 planeNormal = Vector3Normalize(Vector3CrossProduct(axisDir, up));
+
+    // Fallback if axis is parallel to 'up'
+    if (Vector3Length(planeNormal) < 0.01f)
+        planeNormal = Vector3Normalize(Vector3CrossProduct(axisDir, Vector3{1, 0, 0}));
+
+    Vector3 planePoint = dragStartPos;
+
+    float denom = Vector3DotProduct(mouseRay.direction, planeNormal);
+    if (fabs(denom) < 0.0001f)
+        return dragStartMovement + lastAppliedDelta;
+
+    Vector3 rayToPlane = Vector3Subtract(planePoint, mouseRay.position);
+    float t = Vector3DotProduct(rayToPlane, planeNormal) / denom;
+    if (t < 0.001f)
+        return dragStartMovement + lastAppliedDelta;
+
+    Vector3 intersection = Vector3Add(mouseRay.position, Vector3Scale(mouseRay.direction, t));
+    Vector3 diff = Vector3Subtract(intersection, dragStartPos);
+
+    float movement = Vector3DotProduct(diff, axisDir);
+
+    return movement * 0.5f;
 }
 
 /**
@@ -503,9 +653,10 @@ float GizmoSystem::GetRotationAroundAxis(const Ray &mouseRay, int axis, Camera c
  * @param mouseRay The ray from the camera to the mouse position.
  * @param position The position of the target object to be updated.
  * @param rotation The rotation of the target object to be updated.
+ * @param scale The scale of the target object to be updated.
  * @return true if the gizmo system changed the target object, false otherwise.
  */
-bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation)
+bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale)
 {
     if (mode == GizmoMode::NONE)
         return false;
@@ -532,6 +683,10 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
             {
                 hit = CheckCircleHover(mouseRay, i, distance);
             }
+            else if (mode == GizmoMode::SCALE)
+            {
+                hit = CheckScaleBoxHover(mouseRay, i, distance);
+            }
 
             if (hit && distance < minDistance && distance > 0)
             {
@@ -555,6 +710,12 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
                 dragStartRotation = *targetRotation;
                 dragStartMouseOnCircle = ProjectMouseToCircle(mouseRay, selectedAxis, camera);
                 dragStartAngle = 0.0f;
+            }
+            else if (mode == GizmoMode::SCALE && targetScale && targetPosition)
+            {
+                dragStartScale = *targetScale;
+                dragStartPos = *targetPosition;
+                dragStartMovement = GetScaleAlongAxis(mouseRay, selectedAxis, camera);
             }
 
             lastAppliedDelta = 0.0f;
@@ -615,6 +776,41 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
                 changed = true;
             }
         }
+        else if (mode == GizmoMode::SCALE && targetScale)
+        {
+            float currentMovement = GetScaleAlongAxis(mouseRay, selectedAxis, camera);
+            float totalRawDelta = currentMovement - dragStartMovement;
+            float snappedTotal = floorf((totalRawDelta + scaleSnapStep * 0.5f) / scaleSnapStep) * scaleSnapStep;
+
+            const float epsilon = 0.001f;
+            if (fabs(snappedTotal - lastAppliedDelta) > epsilon)
+            {
+                Vector3 newScale = dragStartScale;
+                float scaleFactor = 1.0f + snappedTotal;
+
+                // Prevent negative or zero scaling
+                // Maybe I should allow it, but not sure yet
+                scaleFactor = fmaxf(scaleFactor, 0.01f);
+
+                switch (selectedAxis)
+                {
+                case 0:
+                    newScale.x = dragStartScale.x * scaleFactor;
+                    break;
+                case 1:
+                    newScale.y = dragStartScale.y * scaleFactor;
+                    break;
+                case 2:
+                    newScale.z = dragStartScale.z * scaleFactor;
+                    break;
+                }
+
+                scale = newScale;
+                *targetScale = newScale;
+                lastAppliedDelta = snappedTotal;
+                changed = true;
+            }
+        }
     }
 
     return changed;
@@ -650,6 +846,10 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
             else if (mode == GizmoMode::ROTATION)
             {
                 hit = CheckCircleHover(mouseRay, i, distance);
+            }
+            else if (mode == GizmoMode::SCALE)
+            {
+                hit = CheckScaleBoxHover(mouseRay, i, distance);
             }
 
             if (hit && distance < minDistance && distance > 0)
@@ -694,6 +894,22 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
             DrawText(TextFormat("Rotating around %s axis (snap=%.1f°)", axisNames[selectedAxis], rotationSnapDegrees), 10, 30, 20, BLACK);
         }
     }
+    else if (mode == GizmoMode::SCALE && targetPosition)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            bool isHighlighted = (isDragging && selectedAxis == i) || (!isDragging && hoveredAxis == i);
+            DrawScaleAxis(i, axisColors[i], isHighlighted);
+        }
+
+        DrawSphere(*targetPosition, axisRadius * 2.0f, WHITE);
+
+        if (isDragging)
+        {
+            const char *axisNames[] = {"X", "Y", "Z"};
+            DrawText(TextFormat("Scaling %s axis (snapStep=%.3f)", axisNames[selectedAxis], scaleSnapStep), 10, 30, 20, BLACK);
+        }
+    }
 }
 
 /**
@@ -722,6 +938,10 @@ bool GizmoSystem::CheckForAxisClick(const Ray &mouseRay) const
         else if (mode == GizmoMode::ROTATION)
         {
             hit = CheckCircleHover(mouseRay, i, distance);
+        }
+        else if (mode == GizmoMode::SCALE)
+        {
+            hit = CheckScaleBoxHover(mouseRay, i, distance);
         }
 
         if (hit)

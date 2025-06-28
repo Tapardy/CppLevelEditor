@@ -43,17 +43,19 @@ void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, 
 
     static Vector3 *lastPositionTarget = nullptr;
     static Quaternion *lastRotationTarget = nullptr;
+    static Vector3 *lastScaleTarget = nullptr;
 
-    bool targetsChanged = (lastPositionTarget != &transform->position) || (lastRotationTarget != &transform->rotation);
+    bool targetsChanged = (lastPositionTarget != &transform->position) || (lastRotationTarget != &transform->rotation) || (lastScaleTarget != &transform->scale);
 
     if (targetsChanged)
     {
-        gizmoSystem.SetTarget(&transform->position, &transform->rotation);
+        gizmoSystem.SetTarget(&transform->position, &transform->rotation, &transform->scale);
         lastPositionTarget = &transform->position;
         lastRotationTarget = &transform->rotation;
+        lastScaleTarget = &transform->scale;
     }
 
-    gizmoSystem.Update(camera, mouseRay, transform->position, transform->rotation);
+    gizmoSystem.Update(camera, mouseRay, transform->position, transform->rotation, transform->scale);
 
     gizmoSystem.Render(camera, mouseRay);
 }
@@ -173,19 +175,20 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
             ImGui::SameLine();
 
             GizmoMode currentMode = gizmoSystem.GetMode();
-            const char *modeNames[] = {"None", "Position", "Rotation"};
+            const char *modeNames[] = {"None", "Position", "Rotation", "Scale"};
             int currentModeIndex = static_cast<int>(currentMode);
 
-            if (ImGui::Combo("##GizmoMode", &currentModeIndex, modeNames, 3))
+            if (ImGui::Combo("##GizmoMode", &currentModeIndex, modeNames, 4))
             {
                 gizmoSystem.SetMode(static_cast<GizmoMode>(currentModeIndex));
             }
 
             if (ImGui::CollapsingHeader("Gizmo Settings"))
             {
-                float snapStep, rotationSnap;
+                float snapStep, rotationSnap, scaleSnap;
                 gizmoSystem.GetSnapStep(&snapStep);
                 gizmoSystem.GetRotationSnap(&rotationSnap);
+                gizmoSystem.GetScaleSnap(&scaleSnap);
 
                 if (ImGui::InputFloat("Position Snap", &snapStep, 0.01f, 0.1f, "%.3f"))
                 {
@@ -195,6 +198,11 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
                 if (ImGui::InputFloat("Rotation Snap (degrees)", &rotationSnap, 1.0f, 15.0f, "%.1f"))
                 {
                     gizmoSystem.SetRotationSnap(rotationSnap);
+                }
+
+                if (ImGui::InputFloat("Scale Snap", &scaleSnap, 0.01f, 0.1f, "%.3f"))
+                {
+                    gizmoSystem.SetScaleSnap(scaleSnap);
                 }
             }
 
@@ -341,7 +349,19 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
             ImGui::Separator();
             ImGui::Text("Scale");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::InputFloat3("##Scale", &transform->scale.x, "%.2f");
+
+            if (gizmoSystem.IsActive() &&
+                gizmoSystem.GetMode() == GizmoMode::SCALE &&
+                gizmoSystem.GetTargetScaleAddress() == &transform->scale)
+            {
+                ImGui::InputFloat3("##Scale", &transform->scale.x, "%.2f");
+                ImGui::SameLine();
+                ImGui::TextDisabled("[Scale Gizmo]");
+            }
+            else
+            {
+                ImGui::InputFloat3("##Scale", &transform->scale.x, "%.2f");
+            }
 
             if (transform->scale.x <= 0)
                 transform->scale.x = 0.1f;
