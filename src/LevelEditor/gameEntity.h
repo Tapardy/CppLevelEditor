@@ -132,22 +132,18 @@ struct TransformComponent : Component
     // Rotate around world axes
     void RotateAroundWorldAxis(Vector3 axis, float angleDegrees)
     {
+        Quaternion deltaRotation = QuaternionFromAxisAngle(Vector3Normalize(axis), angleDegrees * DEG2RAD);
+        rotation = QuaternionNormalize(QuaternionMultiply(deltaRotation, rotation));
         if (useEulerStorage)
         {
+            UpdateEulerFromQuaternion();
+
             if (fabs(axis.x - 1.0f) < 0.001f)
                 eulerAngles.x += angleDegrees;
             else if (fabs(axis.y - 1.0f) < 0.001f)
                 eulerAngles.y += angleDegrees;
             else if (fabs(axis.z - 1.0f) < 0.001f)
                 eulerAngles.z += angleDegrees;
-
-            WrapEulerAngles();
-            UpdateQuaternionFromEuler();
-        }
-        else
-        {
-            Quaternion deltaRotation = QuaternionFromAxisAngle(Vector3Normalize(axis), angleDegrees * DEG2RAD);
-            rotation = QuaternionNormalize(QuaternionMultiply(deltaRotation, rotation));
         }
     }
 
@@ -200,6 +196,7 @@ struct TransformComponent : Component
         eulerAngles = degrees;
         UpdateQuaternionFromEuler();
     }
+
     void SetEulerAngles(float x, float y, float z) { SetEulerAngles({x, y, z}); }
 
     // EULER ANGLE FUNCTIONS FOR UI INTEGRATION (kinda nice to have yk)

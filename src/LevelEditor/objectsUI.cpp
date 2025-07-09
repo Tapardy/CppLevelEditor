@@ -54,8 +54,7 @@ void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, 
         lastRotationTarget = &transform->rotation;
         lastScaleTarget = &transform->scale;
     }
-
-    gizmoSystem.Update(camera, mouseRay, transform->position, transform->rotation, transform->scale);
+    gizmoSystem.Update(camera, mouseRay, transform->position, transform->rotation, transform->scale, transform);
 
     gizmoSystem.Render(camera, mouseRay);
 }
@@ -238,8 +237,6 @@ void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
 
             // Get current euler angles for display/editing
             Vector3 eulerAngles = transform->GetEulerAngles();
-
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             if (ImGui::InputFloat3("##Rotation", &eulerAngles.x, "%.2f"))
             {
                 if (!(gizmoSystem.IsActive() && gizmoSystem.GetMode() == GizmoMode::ROTATION))

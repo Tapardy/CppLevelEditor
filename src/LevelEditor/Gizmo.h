@@ -1,6 +1,7 @@
 #pragma once
-#include <raylib.h>
-#include <raymath.h>
+
+#include "../LevelEditor/gameEntity.h"
+
 enum class GizmoMode
 {
     NONE,
@@ -17,7 +18,7 @@ public:
     void SetScaleTarget(Vector3 *scale);
     void SetTarget(Vector3 *position, Quaternion *rotation = nullptr, Vector3 *scale = nullptr);
     void Deactivate();
-    bool Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale);
+    bool Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale, TransformComponent *transformComponent);
     void Render(Camera camera, Ray mouseRay);
     bool CheckForAxisClick(const Ray &mouseRay) const;
     bool IsMouseOverGizmo(const Ray &mouseRay) const;

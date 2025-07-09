@@ -656,7 +656,7 @@ float GizmoSystem::GetRotationAroundAxis(const Ray &mouseRay, int axis, Camera c
  * @param scale The scale of the target object to be updated.
  * @return true if the gizmo system changed the target object, false otherwise.
  */
-bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale)
+bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale, TransformComponent *transformComponent)
 {
     if (mode == GizmoMode::NONE)
         return false;
@@ -757,7 +757,7 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
                 changed = true;
             }
         }
-        else if (mode == GizmoMode::ROTATION && targetRotation)
+        else if (mode == GizmoMode::ROTATION && transformComponent)
         {
             float currentAngle = GetRotationAroundAxis(mouseRay, selectedAxis, camera);
             float totalAngleDegrees = currentAngle * RAD2DEG;
@@ -767,15 +767,15 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
             if (fabs(snappedAngleDegrees - lastAppliedDelta) > epsilon)
             {
                 Vector3 axisDir = GetAxisDirection(selectedAxis);
-                Quaternion deltaRotation = QuaternionFromAxisAngle(axisDir, snappedAngleDegrees * DEG2RAD);
-                Quaternion newRotation = QuaternionMultiply(deltaRotation, dragStartRotation);
 
-                rotation = newRotation;
-                *targetRotation = newRotation;
+                // Direct transform comopnent usage for more reliable and working rotational stuff
+                transformComponent->RotateAroundWorldAxis(axisDir, snappedAngleDegrees - lastAppliedDelta);
+
                 lastAppliedDelta = snappedAngleDegrees;
                 changed = true;
             }
         }
+
         else if (mode == GizmoMode::SCALE && targetScale)
         {
             float currentMovement = GetScaleAlongAxis(mouseRay, selectedAxis, camera);
