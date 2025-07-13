@@ -251,7 +251,6 @@ void GizmoSystem::DrawArrow(Vector3 start, Vector3 end, float radius, float head
  * @param color The color used to draw the circle.
  * @param highlighted Whether the circle should be drawn in a highlighted state.
  */
-
 void GizmoSystem::DrawRotationCircle(int axis, Color color, bool highlighted)
 {
     if (!targetPosition)
@@ -310,6 +309,15 @@ void GizmoSystem::DrawScaleAxis(int axis, Color color, bool highlighted)
     // Draw the scale box at the end
     Vector3 boxCenter = Vector3Add(*targetPosition, Vector3Scale(direction, axisLength));
     DrawCube(boxCenter, currentBoxSize, currentBoxSize, currentBoxSize, color);
+}
+
+void GizmoSystem::DrawUniformScaleCircle(Color color, bool highlighted)
+{
+    if (!targetPosition)
+        return;
+    float orbRadius = uniformScaleCircleRadius;
+    float scale = highlighted ? highlightScale : 1.0f;
+    DrawSphere(*targetPosition, orbRadius * scale, color);
 }
 
 /**
@@ -453,6 +461,32 @@ bool GizmoSystem::CheckScaleBoxHover(const Ray &mouseRay, int axis, float &dista
     return hit;
 }
 
+bool GizmoSystem::CheckUniformScaleCircleHover(const Ray &mouseRay, float &distance) const
+{
+    if (mode != GizmoMode::SCALE || !targetPosition)
+        return false;
+
+    Vector3 center = *targetPosition;
+
+    RayCollision collision = GetRayCollisionSphere(mouseRay, center, uniformScaleCircleRadius + uniformScaleCircleThickness * 4.0f);
+    if (collision.hit)
+    {
+        Vector3 hitPoint = Vector3Add(mouseRay.position, Vector3Scale(mouseRay.direction, collision.distance));
+        Vector3 toHit = Vector3Subtract(hitPoint, center);
+        float distFromCenter = Vector3Length(toHit);
+
+        // Check if it's near the circle radius
+        float tolerance = uniformScaleCircleThickness * 6.0f;
+        if (fabs(distFromCenter - uniformScaleCircleRadius) < tolerance)
+        {
+            distance = collision.distance;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /**
  * @brief Calculates the movement along a given axis based on the mouse ray intersection with a plane perpendicular to the axis
  *
@@ -533,6 +567,22 @@ float GizmoSystem::GetScaleAlongAxis(const Ray &mouseRay, int axis, Camera camer
     float movement = Vector3DotProduct(diff, axisDir);
 
     return movement * 0.5f;
+}
+
+float GizmoSystem::GetUniformScaleAmount(const Ray &mouseRay, Camera camera) const
+{
+    if (!targetPosition)
+        return 1.0f;
+
+    Vector2 currMousePos = GetMousePosition();
+    float deltaY = dragStartScreenPos.y - currMousePos.y;
+
+    float sensitivity = 0.005f;
+    float scaleFactor = 1.0f + deltaY * sensitivity;
+
+    scaleFactor = fmaxf(scaleFactor, 0.01f);
+
+    return dragStartMovement * scaleFactor;
 }
 
 /**
@@ -670,6 +720,16 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
         float minDistance = FLT_MAX;
         int closestAxis = -1;
 
+        if (mode == GizmoMode::SCALE)
+        {
+            float distance;
+            if (CheckUniformScaleCircleHover(mouseRay, distance))
+            {
+                minDistance = distance;
+                closestAxis = 3;
+            }
+        }
+
         for (int i = 0; i < 3; i++)
         {
             float distance;
@@ -715,7 +775,16 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
             {
                 dragStartScale = *targetScale;
                 dragStartPos = *targetPosition;
-                dragStartMovement = GetScaleAlongAxis(mouseRay, selectedAxis, camera);
+
+                if (selectedAxis == 3)
+                {
+                    dragStartScreenPos = GetMousePosition();
+                    dragStartMovement = GetUniformScaleAmount(mouseRay, camera);
+                }
+                else
+                {
+                    dragStartMovement = GetScaleAlongAxis(mouseRay, selectedAxis, camera);
+                }
             }
 
             lastAppliedDelta = 0.0f;
@@ -767,48 +836,67 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
             if (fabs(snappedAngleDegrees - lastAppliedDelta) > epsilon)
             {
                 Vector3 axisDir = GetAxisDirection(selectedAxis);
-
-                // Direct transform comopnent usage for more reliable and working rotational stuff
                 transformComponent->RotateAroundWorldAxis(axisDir, snappedAngleDegrees - lastAppliedDelta);
-
                 lastAppliedDelta = snappedAngleDegrees;
                 changed = true;
             }
         }
-
         else if (mode == GizmoMode::SCALE && targetScale)
         {
-            float currentMovement = GetScaleAlongAxis(mouseRay, selectedAxis, camera);
-            float totalRawDelta = currentMovement - dragStartMovement;
-            float snappedTotal = floorf((totalRawDelta + scaleSnapStep * 0.5f) / scaleSnapStep) * scaleSnapStep;
-
-            const float epsilon = 0.001f;
-            if (fabs(snappedTotal - lastAppliedDelta) > epsilon)
+            if (selectedAxis == 3)
             {
-                Vector3 newScale = dragStartScale;
-                float scaleFactor = 1.0f + snappedTotal;
+                float currentMovement = GetUniformScaleAmount(mouseRay, camera);
+                float totalRawDelta = currentMovement - dragStartMovement;
+                float snappedTotal = floorf((totalRawDelta + scaleSnapStep * 0.5f) / scaleSnapStep) * scaleSnapStep;
 
-                // Prevent negative or zero scaling
-                // Maybe I should allow it, but not sure yet
-                scaleFactor = fmaxf(scaleFactor, 0.01f);
-
-                switch (selectedAxis)
+                const float epsilon = 0.001f;
+                if (fabs(snappedTotal - lastAppliedDelta) > epsilon)
                 {
-                case 0:
-                    newScale.x = dragStartScale.x * scaleFactor;
-                    break;
-                case 1:
-                    newScale.y = dragStartScale.y * scaleFactor;
-                    break;
-                case 2:
-                    newScale.z = dragStartScale.z * scaleFactor;
-                    break;
-                }
+                    float scaleFactor = 1.0f + snappedTotal;
+                    scaleFactor = fmaxf(scaleFactor, 0.01f);
 
-                scale = newScale;
-                *targetScale = newScale;
-                lastAppliedDelta = snappedTotal;
-                changed = true;
+                    Vector3 newScale = {
+                        dragStartScale.x * scaleFactor,
+                        dragStartScale.y * scaleFactor,
+                        dragStartScale.z * scaleFactor};
+
+                    scale = newScale;
+                    *targetScale = newScale;
+                    lastAppliedDelta = snappedTotal;
+                    changed = true;
+                }
+            }
+            else
+            {
+                float currentMovement = GetScaleAlongAxis(mouseRay, selectedAxis, camera);
+                float totalRawDelta = currentMovement - dragStartMovement;
+                float snappedTotal = floorf((totalRawDelta + scaleSnapStep * 0.5f) / scaleSnapStep) * scaleSnapStep;
+
+                const float epsilon = 0.001f;
+                if (fabs(snappedTotal - lastAppliedDelta) > epsilon)
+                {
+                    Vector3 newScale = dragStartScale;
+                    float scaleFactor = 1.0f + snappedTotal;
+                    scaleFactor = fmaxf(scaleFactor, 0.01f);
+
+                    switch (selectedAxis)
+                    {
+                    case 0:
+                        newScale.x = dragStartScale.x * scaleFactor;
+                        break;
+                    case 1:
+                        newScale.y = dragStartScale.y * scaleFactor;
+                        break;
+                    case 2:
+                        newScale.z = dragStartScale.z * scaleFactor;
+                        break;
+                    }
+
+                    scale = newScale;
+                    *targetScale = newScale;
+                    lastAppliedDelta = snappedTotal;
+                    changed = true;
+                }
             }
         }
     }
@@ -834,6 +922,17 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
     if (!isDragging)
     {
         float minDistance = FLT_MAX;
+
+        if (mode == GizmoMode::SCALE)
+        {
+            float distance;
+            if (CheckUniformScaleCircleHover(mouseRay, distance))
+            {
+                minDistance = distance;
+                hoveredAxis = 3;
+            }
+        }
+
         for (int i = 0; i < 3; i++)
         {
             float distance;
@@ -902,12 +1001,22 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
             DrawScaleAxis(i, axisColors[i], isHighlighted);
         }
 
+        bool isUniformHighlighted = (isDragging && selectedAxis == 3) || (!isDragging && hoveredAxis == 3);
+        DrawUniformScaleCircle(WHITE, isUniformHighlighted);
+
         DrawSphere(*targetPosition, axisRadius * 2.0f, WHITE);
 
         if (isDragging)
         {
-            const char *axisNames[] = {"X", "Y", "Z"};
-            DrawText(TextFormat("Scaling %s axis (snapStep=%.3f)", axisNames[selectedAxis], scaleSnapStep), 10, 30, 20, BLACK);
+            if (selectedAxis == 3)
+            {
+                DrawText(TextFormat("Uniform scaling (snapStep=%.3f)", scaleSnapStep), 10, 30, 20, BLACK);
+            }
+            else
+            {
+                const char *axisNames[] = {"X", "Y", "Z"};
+                DrawText(TextFormat("Scaling %s axis (snapStep=%.3f)", axisNames[selectedAxis], scaleSnapStep), 10, 30, 20, BLACK);
+            }
         }
     }
 }
@@ -925,6 +1034,13 @@ bool GizmoSystem::CheckForAxisClick(const Ray &mouseRay) const
 {
     if (mode == GizmoMode::NONE)
         return false;
+
+    if (mode == GizmoMode::SCALE)
+    {
+        float distance;
+        if (CheckUniformScaleCircleHover(mouseRay, distance))
+            return true;
+    }
 
     for (int i = 0; i < 3; i++)
     {
