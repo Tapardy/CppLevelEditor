@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <typeindex>
 #include <raymath.h>
+#include <string>
 
 // Forward declaration, otherwise the component it doesn't know (kinda need it cuz templates have to be here)
 class GameEntity;
@@ -43,8 +44,11 @@ public:
 class GameEntity
 {
 public:
-    GameEntity() = default;
+    // Default to "Entity" as name
+    GameEntity() : name("Entity") {}
     ~GameEntity() = default;
+
+    std::string name;
 
     // Yeah, still struggling myself here
     template <typename T, typename... Args>
@@ -106,6 +110,15 @@ public:
         }
         return nullptr;
     }
+
+    template <typename T>
+    bool HasComponent()
+    {
+        return components.find(std::type_index(typeid(T))) != components.end();
+    }
+
+    void SetName(std::string name) { this->name = name; }
+    const std::string &GetName() const { return name; }
 
 private:
     std::unordered_map<std::type_index, std::unique_ptr<Component>> components;
