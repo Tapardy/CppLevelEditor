@@ -8,20 +8,18 @@
 #include <vector>
 #include <string>
 
-GizmoSystem ObjectUI::gizmoSystem;
-
 bool RenderRemoveComponentButton()
 {
     ImGui::SameLine();
     return ImGui::Button("X##RemoveComponent");
 }
 
-bool ObjectUI::IsGizmoClicked(Camera camera, Ray mouseRay)
+bool ObjectUI::IsGizmoClicked(Camera camera, Ray mouseRay, GizmoSystem &gizmoSystem)
 {
     return gizmoSystem.CheckForAxisClick(mouseRay, camera);
 }
 
-void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, Ray mouseRay)
+void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, Ray mouseRay, GizmoSystem &gizmoSystem)
 {
     if (!selectedEntity)
     {
@@ -54,7 +52,7 @@ void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, 
     gizmoSystem.Render(camera, mouseRay);
 }
 
-void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities)
+void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities, GizmoSystem &gizmoSystem)
 {
     // ImGui::DockSpaceOverViewport(ImGuiDockNodeFlags_PassthruCentralNode);
     ImGui::Begin("Entity Editor");
@@ -75,7 +73,7 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
         // Always on top, looks nice
         if (auto transform = (*selectedEntity)->GetComponent<TransformComponent>())
         {
-            ObjectUI::RenderTransformComponentUI(transform);
+            ObjectUI::RenderTransformComponentUI(transform, gizmoSystem);
         }
 
         // Basically the dropdown menu where you can add components
@@ -159,7 +157,7 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
     ImGui::End();
 }
 
-void ObjectUI::RenderTransformComponentUI(TransformComponent *transform)
+void ObjectUI::RenderTransformComponentUI(TransformComponent *transform, GizmoSystem &gizmoSystem)
 {
     if (transform)
     {

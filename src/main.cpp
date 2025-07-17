@@ -87,6 +87,8 @@ int main()
     std::vector<GameEntity *> entities;
     GameEntity *selectedEntity = nullptr;
 
+    GizmoSystem gizmoSystem;
+
     RenderTexture2D sceneTarget = LoadRenderTextureDepthTex(screenWidth, screenHeight);
 
     SetTargetFPS(60);
@@ -112,6 +114,16 @@ int main()
         else if (IsCursorHidden())
             EnableCursor();
 
+        if (!io.WantTextInput)
+        {
+            if (IsKeyPressed(KEY_W))
+                gizmoSystem.SetMode(GizmoMode::POSITION);
+            if (IsKeyPressed(KEY_E))
+                gizmoSystem.SetMode(GizmoMode::ROTATION);
+            if (IsKeyPressed(KEY_R))
+                gizmoSystem.SetMode(GizmoMode::SCALE);
+        }
+
         bool isMouseOverImGui = ImGui::GetIO().WantCaptureMouse;
         Ray mouseRay = GetScreenToWorldRay(GetMousePosition(), camera);
 
@@ -123,7 +135,7 @@ int main()
                 // Check if we clicked on a gizmo first
                 bool clickedOnGizmo = false;
                 if (selectedEntity)
-                    clickedOnGizmo = ObjectUI::IsGizmoClicked(camera, mouseRay);
+                    clickedOnGizmo = ObjectUI::IsGizmoClicked(camera, mouseRay, gizmoSystem);
 
                 if (!clickedOnGizmo)
                 {
@@ -160,7 +172,7 @@ int main()
         if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
         {
             // Draw gizmos here, so it is synced to the object you're dragging, might change this to just update gizmos and render them below
-            ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay);
+            ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);
         }
 
         BeginTextureMode(sceneTarget);
@@ -192,13 +204,13 @@ int main()
             if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
             {
                 // Draw gizmos again, as otherwise they won't be on top
-                ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay);
+                ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);
             }
             rlEnableDepthTest();
             EndMode3D();
 
             rlImGuiBegin();
-            ObjectUI::RenderGeneralUI(&selectedEntity, entities);
+            ObjectUI::RenderGeneralUI(&selectedEntity, entities, gizmoSystem);
             // Test Print
             // DebugPrint("Test", selectedEntity);
             // DebugWarn("Test", selectedEntity);
