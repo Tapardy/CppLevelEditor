@@ -18,12 +18,7 @@ bool RenderRemoveComponentButton()
 
 bool ObjectUI::IsGizmoClicked(Camera camera, Ray mouseRay)
 {
-    return gizmoSystem.CheckForAxisClick(mouseRay);
-}
-
-bool ObjectUI::IsGizmoHovered(Ray mouseRay)
-{
-    return gizmoSystem.IsMouseOverGizmo(mouseRay);
+    return gizmoSystem.CheckForAxisClick(mouseRay, camera);
 }
 
 void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, Ray mouseRay)

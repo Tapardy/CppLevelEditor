@@ -20,8 +20,8 @@ public:
     void Deactivate();
     bool Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale, TransformComponent *transformComponent);
     void Render(Camera camera, Ray mouseRay);
-    bool CheckForAxisClick(const Ray &mouseRay) const;
-    bool IsMouseOverGizmo(const Ray &mouseRay) const;
+    bool CheckForAxisClick(const Ray &mouseRay, Camera camera) const;
+    bool IsMouseOverGizmo(const Ray &mouseRay, Camera camera) const;
     bool IsActive() const { return (targetPosition != nullptr || targetRotation != nullptr || targetScale != nullptr) && mode != GizmoMode::NONE; }
     void SetSnapStep(float newSnapStep);
     void SetRotationSnap(float degrees);
@@ -40,6 +40,10 @@ private:
     float GetRotationAroundAxis(const Ray &mouseRay, int axis, Camera camera) const;
     float GetScaleAlongAxis(const Ray &mouseRay, int axis, Camera camera) const;
     float GetUniformScaleAmount(const Ray &mouseRay, Camera camera) const;
+    float GetGizmoScale(Camera camera) const;
+    Matrix GetGizmoTransform(Camera camera) const;
+    Vector3 TransformAxisDirection(int axis, Camera camera) const;
+
     GizmoMode mode = GizmoMode::NONE;
     Color axisColors[3] = {RED, GREEN, BLUE}; // X, Y, Z axes
 
@@ -66,6 +70,7 @@ private:
     int circleSegments = 64;
     float highlightScale = 1.2f;
     float scaleBoxSize = 0.2f;
+    float gizmoSize = 0.05f; // Size in screen space, coudl be made customizable if the user would want bigger gizmos in general
 
     float uniformScaleCircleRadius = 0.2f;
     float uniformScaleCircleThickness = 0.08f;
@@ -76,18 +81,18 @@ private:
     float accumulatedMovement = 0.0f;
     float dragStartMovement = 0.0f;
 
-    Ray GetAxisRay(int axis) const;
-    bool CheckAxisHover(const Ray &mouseRay, int axis, float &distance) const;
-    bool CheckCircleHover(const Ray &mouseRay, int axis, float &distance) const;
-    bool CheckScaleBoxHover(const Ray &mouseRay, int axis, float &distance) const;
-    bool CheckUniformScaleCircleHover(const Ray &mouseRay, float &distance) const;
+    Ray GetAxisRay(int axis, Camera camera) const;
+    bool CheckAxisHover(const Ray &mouseRay, int axis, float &distance, Camera camera) const;
+    bool CheckCircleHover(const Ray &mouseRay, int axis, float &distance, Camera camera) const;
+    bool CheckScaleBoxHover(const Ray &mouseRay, int axis, float &distance, Camera camera) const;
+    bool CheckUniformScaleCircleHover(const Ray &mouseRay, float &distance, Camera camera) const;
     Vector3 GetAxisDirection(int axis) const;
     Vector3 ProjectMouseToAxis(const Ray &mouseRay, int axis, Camera camera) const;
     Vector3 ProjectMouseToCircle(const Ray &mouseRay, int axis, Camera camera) const;
     void DrawArrow(Vector3 start, Vector3 end, float radius, float headLength, float headRadius, Color color, bool highlighted = false);
-    void DrawRotationCircle(int axis, Color color, bool highlighted = false);
-    void DrawScaleAxis(int axis, Color color, bool highlighted = false);
-    void DrawUniformScaleCircle(Color color, bool highlighted = false);
+    void DrawRotationCircle(int axis, Color color, bool highlighted, Camera camera);
+    void DrawScaleAxis(int axis, Color color, bool highlighted, Camera camera);
+    void DrawUniformScaleCircle(Color color, bool highlighted, Camera camera);
     float NormalizeAngle(float angle) const;
     float GetAngleBetweenVectors(Vector3 a, Vector3 b, Vector3 normal) const;
 };
