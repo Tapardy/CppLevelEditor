@@ -809,7 +809,7 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
                 if (selectedAxis == 3)
                 {
                     dragStartScreenPos = GetMousePosition();
-                    dragStartMovement = GetUniformScaleAmount(mouseRay, camera);
+                    dragStartMovement = 1.0f;
                 }
                 else
                 {
