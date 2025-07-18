@@ -1,13 +1,21 @@
 #pragma once
 #include <vector>
-#include "objects.h"
 #include "gameEntity.h"
+#include "gizmo.h"
 #include "../typedef.h"
 
-namespace ObjectUI
+class ObjectUI
 {
-    void RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities);
-    void RenderTransformComponentUI(TransformComponent *transform);
-    void RenderCubeComponentUI(CubeComponent *cube);
-    void RenderSphereComponentUI(SphereComponent *sphere);
-}
+public:
+    static void RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEntity *> &entities, GizmoSystem &gizmoSystem);
+    static void RenderTransformComponentUI(TransformComponent *transform, GizmoSystem &gizmoSystem);
+    static void RenderCubeComponentUI(CubeComponent *cube);
+    static void RenderSphereComponentUI(SphereComponent *sphere);
+
+    static void SetupGizmoSystem();
+    static void UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, Ray mouseRay, GizmoSystem &gizmoSystem);
+    static bool IsGizmoClicked(Camera camera, Ray mouseRay, GizmoSystem &gizmoSystem);
+
+private:
+    static GizmoSystem gizmoSystem;
+};

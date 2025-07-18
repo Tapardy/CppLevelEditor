@@ -1,6 +1,8 @@
 #include <raylib.h>
-#include <iostream>
+#include <rlgl.h>
 #include <vector>
+#include <iostream>
+
 #include "typedef.h"
 #include "Inputs/inputs.h"
 #include "LevelEditor/objectsUI.h"
@@ -9,7 +11,57 @@
 #include "../imgui/imgui.h"
 #include "../imgui/rlImGui.h"
 #include "../imgui/rlImGuiColors.h"
+#include "../imgui/imguiStyle.h"
+#include "Rendering/Renderer.h"
+#include "Logging/Logger.h"
+#include "Logging/ConsoleUI.h"
 #include <raymath.h>
+
+// Link incase I forget how it works
+// https://www.raylib.com/examples/shaders/loader.html?name=shaders_write_depth
+static RenderTexture2D LoadRenderTextureDepthTex(int width, int height)
+{
+    RenderTexture2D target = {0};
+    target.id = rlLoadFramebuffer();
+    if (target.id > 0)
+    {
+        rlEnableFramebuffer(target.id);
+
+        target.texture.id = rlLoadTexture(0, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+        target.texture.width = width;
+        target.texture.height = height;
+        target.texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+        target.texture.mipmaps = 1;
+
+        target.depth.id = rlLoadTextureDepth(width, height, false);
+        target.depth.width = width;
+        target.depth.height = height;
+        target.depth.format = 19;
+        target.depth.mipmaps = 1;
+
+        rlFramebufferAttach(target.id, target.texture.id, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+        rlFramebufferAttach(target.id, target.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+
+        if (rlFramebufferComplete(target.id))
+            TRACELOG(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
+
+        rlDisableFramebuffer();
+    }
+    else
+        TRACELOG(LOG_WARNING, "FBO: Framebuffer object can not be created");
+
+    return target;
+}
+
+static void UnloadRenderTextureDepthTex(RenderTexture2D target)
+{
+    if (target.id > 0)
+    {
+        rlUnloadTexture(target.texture.id);
+        rlUnloadTexture(target.depth.id);
+        rlUnloadFramebuffer(target.id);
+    }
+}
 
 int main()
 {
@@ -19,6 +71,9 @@ int main()
     InitWindow(screenWidth, screenHeight, "3D Game raylib");
 
     rlImGuiSetup(true);
+    ImGuiIO &io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    SetCustomImGuiStyle();
 
     Camera3D camera = {0};
     camera.position = Vector3{10.0f, 10.0f, 10.0f};
@@ -27,16 +82,20 @@ int main()
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    Ray ray = {0};
     RayCollision collision = {0};
 
     std::vector<GameEntity *> entities;
     GameEntity *selectedEntity = nullptr;
 
+    GizmoSystem gizmoSystem;
+
+    RenderTexture2D sceneTarget = LoadRenderTextureDepthTex(screenWidth, screenHeight);
+
     SetTargetFPS(60);
 
     while (!WindowShouldClose())
     {
+
         if (IsKeyPressed(KEY_F5))
         {
             // Need to implement the new Save function with the GameEntities, but lazy atm
@@ -55,91 +114,117 @@ int main()
         else if (IsCursorHidden())
             EnableCursor();
 
-        //  Makes it so the selected cube isn't lost when clicking UI *made it impossible to modify cube data*
-        bool isMouseOverImGui = ImGui::GetIO().WantCaptureMouse;
-
-        // Really should extract this by now
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isMouseOverImGui)
+        if (!io.WantTextInput)
         {
-            ray = GetScreenToWorldRay(GetMousePosition(), camera);
-            selectedEntity = nullptr;
-            for (auto entity : entities)
+            if (IsKeyPressed(KEY_W))
+                gizmoSystem.SetMode(GizmoMode::POSITION);
+            if (IsKeyPressed(KEY_E))
+                gizmoSystem.SetMode(GizmoMode::ROTATION);
+            if (IsKeyPressed(KEY_R))
+                gizmoSystem.SetMode(GizmoMode::SCALE);
+        }
+
+        bool isMouseOverImGui = ImGui::GetIO().WantCaptureMouse;
+        Ray mouseRay = GetScreenToWorldRay(GetMousePosition(), camera);
+
+        // TODO: Also extract this bit into a separate script for the same reason as renderer
+        if (!isMouseOverImGui && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        {
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
             {
-                // Just skip without a transform
-                auto transform = entity->GetComponent<TransformComponent>();
-                if (!transform)
-                    continue;
+                // Check if we clicked on a gizmo first
+                bool clickedOnGizmo = false;
+                if (selectedEntity)
+                    clickedOnGizmo = ObjectUI::IsGizmoClicked(camera, mouseRay, gizmoSystem);
 
-                if (auto cube = entity->GetComponent<CubeComponent>())
+                if (!clickedOnGizmo)
                 {
-                    // Have to do this again atm, will fix later
-                    BoundingBox box = {
-                        Vector3Subtract(transform->position, Vector3Scale(cube->size, 0.5f)),
-                        Vector3Add(transform->position, Vector3Scale(cube->size, 0.5f))};
-                    collision = GetRayCollisionBox(ray, box);
-                }
-                else if (auto sphere = entity->GetComponent<SphereComponent>())
-                {
-                    collision = GetRayCollisionSphere(ray, transform->position, sphere->radius);
-                }
-                else
-                {
-                    continue;
-                }
+                    selectedEntity = nullptr;
+                    for (auto entity : entities)
+                    {
+                        auto transform = entity->GetComponent<TransformComponent>();
+                        if (!transform)
+                            continue;
 
-                if (collision.hit)
-                {
-                    selectedEntity = entity;
-                    // Break so you don't add another
-                    break;
+                        if (auto cube = entity->GetComponent<CubeComponent>())
+                        {
+                            BoundingBox box = cube->GetBoundingBox();
+                            collision = GetRayCollisionBox(mouseRay, box);
+                        }
+                        else if (auto sphere = entity->GetComponent<SphereComponent>())
+                        {
+                            float scaledRadius = sphere->GetScaledRadius();
+                            collision = GetRayCollisionSphere(mouseRay, transform->position, scaledRadius);
+                        }
+                        else
+                            continue;
+
+                        if (collision.hit)
+                        {
+                            selectedEntity = entity;
+                            break;
+                        }
+                    }
                 }
             }
         }
 
-        // Indenting for readability
+        if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        {
+            // Draw gizmos here, so it is synced to the object you're dragging, might change this to just update gizmos and render them below
+            ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);
+        }
+
+        BeginTextureMode(sceneTarget);
+        {
+            ClearBackground(RAYWHITE);
+
+            BeginMode3D(camera);
+            {
+                DrawGrid(50, 1.0f);
+                // Render components separately, as with many components this can bloat the file a lot
+                Renderer::RenderComponents(entities, selectedEntity);
+            }
+            EndMode3D();
+        }
+        EndTextureMode();
+
         BeginDrawing();
         {
             ClearBackground(RAYWHITE);
 
-            rlImGuiBegin();
-            {
-                ObjectUI::RenderGeneralUI(&selectedEntity, entities);
-            }
-            rlImGuiEnd();
+            DrawTextureRec(
+                sceneTarget.texture,
+                Rectangle{0, 0, (float)screenWidth, (float)-screenHeight}, // Flip Y
+                Vector2{0, 0},
+                WHITE);
 
             BeginMode3D(camera);
+            rlDisableDepthTest();
+            if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
             {
-                for (auto entity : entities)
-                {
-                    auto transform = entity->GetComponent<TransformComponent>();
-                    if (!transform)
-                        continue;
-
-                    // Check for CubeComponent
-                    if (auto cube = entity->GetComponent<CubeComponent>())
-                    {
-                        DrawCubeV(transform->position, cube->size, cube->color);
-                        if (entity == selectedEntity)
-                        {
-                            DrawCubeWiresV(transform->position, Vector3{cube->size.x + 0.2f, cube->size.y + 0.2f, cube->size.z + 0.2f}, BLACK);
-                        }
-                    }
-                    // Check for SphereComponent
-                    else if (auto sphere = entity->GetComponent<SphereComponent>())
-                    {
-                        DrawSphere(transform->position, sphere->radius, sphere->color);
-                        if (entity == selectedEntity)
-                        {
-                            DrawSphereWires(transform->position, sphere->radius + 0.1f, 16, 16, BLACK);
-                        }
-                    }
-                }
+                // Draw gizmos again, as otherwise they won't be on top
+                ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);
             }
+            rlEnableDepthTest();
             EndMode3D();
+
+            rlImGuiBegin();
+            ObjectUI::RenderGeneralUI(&selectedEntity, entities, gizmoSystem);
+            // Test Print
+            // DebugPrint("Test", selectedEntity);
+            // DebugWarn("Test", selectedEntity);
+            // DebugPrint(selectedEntity, "Test");
+            // DebugWarn(selectedEntity, "Test");
+            // DebugPrint(1);
+
+            RenderConsoleUI(logBuffer);
+            rlImGuiEnd();
         }
         EndDrawing();
     }
 
     rlImGuiShutdown();
+    UnloadRenderTextureDepthTex(sceneTarget);
     CloseWindow();
 }
