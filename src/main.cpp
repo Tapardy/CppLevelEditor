@@ -121,7 +121,7 @@ int main()
         else if (IsCursorHidden())
             EnableCursor();
 
-        if (!io.WantTextInput)
+        if (!io.WantTextInput && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
         {
             inputSystem.CheckInputs();
         }
@@ -168,7 +168,7 @@ int main()
             }
         }
 
-        if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (selectedEntity)
         {
             // Draw gizmos here, so it is synced to the object you're dragging, might change this to just update gizmos and render them below
             ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);
@@ -200,7 +200,7 @@ int main()
 
             BeginMode3D(camera);
             rlDisableDepthTest();
-            if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+            if (selectedEntity)
             {
                 // Draw gizmos again, as otherwise they won't be on top
                 ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);

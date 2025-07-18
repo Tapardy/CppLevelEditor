@@ -11,13 +11,6 @@
 // Forward declaration, otherwise the component it doesn't know (kinda need it cuz templates have to be here)
 class GameEntity;
 
-enum class ComponentType
-{
-    Cube,
-    Sphere,
-    Mesh,
-};
-
 // Pretty handy if we could only have 1 component of the same category per entity, breaks less things
 enum class ComponentCategory
 {
@@ -30,10 +23,9 @@ public:
     virtual ~Component() = default;
     // Pointer to the entity that owns it
     GameEntity *entity = nullptr;
-    const ComponentType type;
     const ComponentCategory category;
 
-    Component(ComponentType componentType, ComponentCategory componentCategory) : type(componentType), category(componentCategory) {}
+    Component(ComponentCategory componentCategory) : category(componentCategory) {}
 };
 
 struct EntityTransform
@@ -250,7 +242,7 @@ private:
 
 struct CubeComponent : Component
 {
-    CubeComponent() : Component(ComponentType::Cube, ComponentCategory::Object) {}
+    CubeComponent() : Component(ComponentCategory::Object) {}
     Vector3 size = {1, 1, 1};
     Color color = GRAY;
 
@@ -282,7 +274,7 @@ struct CubeComponent : Component
 
 struct SphereComponent : Component
 {
-    SphereComponent() : Component(ComponentType::Sphere, ComponentCategory::Object) {}
+    SphereComponent() : Component(ComponentCategory::Object) {}
     float radius = 1.0f;
     Color color = GRAY;
 
@@ -299,7 +291,7 @@ struct SphereComponent : Component
 
 struct MeshComponent : Component
 {
-    MeshComponent() : Component(ComponentType::Mesh, ComponentCategory::Object) {}
+    MeshComponent() : Component(ComponentCategory::Object) {}
 
     Mesh *mesh = nullptr;
     Material *material = nullptr;
