@@ -2,9 +2,9 @@
 #include <raylib.h>
 #include <raymath.h>
 #include "../Logging/Logger.h"
+#include <unordered_set>
 
 int InputSystem::_gamepadIndex = 0;
-std::vector<InputObserver *> observers;
 
 void InputSystem::RegisterObserver(InputObserver *observer)
 {
@@ -20,38 +20,62 @@ void InputSystem::UnregisterObserver(InputObserver *observer)
 
 void InputSystem::CheckInputs()
 {
+    std::unordered_set<int> newPressedKeys;
+
     int key = GetKeyPressed();
     while (key != 0)
     {
-        DebugPrint("Key: ", key);
-        for (auto &observer : observers)
+        // Prevent the keypressed to trigger when letting go of the key
+        if (IsKeyDown(key))
         {
-            if (IsKeyPressed(key))
+            DebugPrint("Key Pressed: ", key);
+            newPressedKeys.insert(key);
+
+            for (auto &observer : observers)
             {
                 observer->OnInputEvent(key, InputType::KeyPressed);
-            }
-            else if (IsKeyReleased(key))
-            {
-                observer->OnInputEvent(key, InputType::KeyReleased);
-            }
-            else if (IsKeyDown(key))
-            {
-                observer->OnInputEvent(key, InputType::KeyDown);
-            }
-            else if (IsKeyUp(key))
-            {
-                observer->OnInputEvent(key, InputType::IsKeyUp);
             }
         }
 
         key = GetKeyPressed();
     }
+
+    std::unordered_set<int> stillPressedKeys;
+
+    for (int key : currentlyPressedKeys)
+    {
+        if (IsKeyDown(key))
+        {
+            stillPressedKeys.insert(key);
+            for (auto &observer : observers)
+            {
+                observer->OnInputEvent(key, InputType::KeyDown);
+            }
+        }
+        else
+        {
+            for (auto &observer : observers)
+            {
+                observer->OnInputEvent(key, InputType::KeyReleased);
+                observer->OnInputEvent(key, InputType::IsKeyUp);
+            }
+        }
+    }
+
+    for (int key : newPressedKeys)
+    {
+        if (IsKeyDown(key))
+        {
+            stillPressedKeys.insert(key);
+        }
+    }
+
+    currentlyPressedKeys = std::move(stillPressedKeys);
 }
 
 // Just keeping this here in case I ever need it
 bool InputSystem::IsControllerActive(int gamepadIndex = 0)
 {
-
     _gamepadIndex = gamepadIndex;
     return IsGamepadAvailable(gamepadIndex) &&
            (GetGamepadAxisCount(gamepadIndex) > 0);
