@@ -14,7 +14,8 @@ target_include_directories(game PRIVATE
     src
     src/LevelEditor
     src/Logging
-    src/Inputs
+    src/EngineInputs
+    src/EngineInputs/Gizmos
     src/Rendering
     src/SaveLevel
     C:/raylib/raylib/build/raylib/include

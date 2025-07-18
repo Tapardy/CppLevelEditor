@@ -4,7 +4,8 @@
 #include <iostream>
 
 #include "typedef.h"
-#include "Inputs/inputs.h"
+#include "EngineInputs\inputs.h"
+#include "EngineInputs\Gizmos\GizmoController.h"
 #include "LevelEditor/objectsUI.h"
 #include "LevelEditor/gameEntity.h"
 #include "SaveLevel/save.h"
@@ -89,6 +90,12 @@ int main()
 
     GizmoSystem gizmoSystem;
 
+    InputSystem inputSystem;
+    GizmoController gizmoController(gizmoSystem);
+
+    // Register controller as observer
+    inputSystem.RegisterObserver(&gizmoController);
+
     RenderTexture2D sceneTarget = LoadRenderTextureDepthTex(screenWidth, screenHeight);
 
     SetTargetFPS(60);
@@ -116,12 +123,7 @@ int main()
 
         if (!io.WantTextInput)
         {
-            if (IsKeyPressed(KEY_W))
-                gizmoSystem.SetMode(GizmoMode::POSITION);
-            if (IsKeyPressed(KEY_E))
-                gizmoSystem.SetMode(GizmoMode::ROTATION);
-            if (IsKeyPressed(KEY_R))
-                gizmoSystem.SetMode(GizmoMode::SCALE);
+            inputSystem.CheckInputs();
         }
 
         bool isMouseOverImGui = ImGui::GetIO().WantCaptureMouse;
