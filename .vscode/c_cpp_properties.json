@@ -10,7 +10,8 @@
                 "${workspaceFolder}/imgui/**",
                 "${workspaceFolder}/src/Rendering/**",
                 "${workspaceFolder}/src/SaveLevel/**",
-                "${workspaceFolder}/src/Logging/**"
+                "${workspaceFolder}/src/Logging/**",
+                "C:/raylib/raylib/build/raylib/include"
             ],
             "defines": [
                 "_DEBUG",
