@@ -13,17 +13,14 @@ class GameEntity;
 
 enum class ComponentType
 {
-    Transform,
     Cube,
     Sphere,
+    Mesh,
 };
 
 // Pretty handy if we could only have 1 component of the same category per entity, breaks less things
 enum class ComponentCategory
 {
-    // Transform is unique, always just the transform
-    Transform,
-    // Object is for meshes, cubes, etc etc etc
     Object,
 };
 
@@ -36,98 +33,11 @@ public:
     const ComponentType type;
     const ComponentCategory category;
 
-    // Ctor to the component type and category cannot be changed
     Component(ComponentType componentType, ComponentCategory componentCategory) : type(componentType), category(componentCategory) {}
 };
 
-// Has to be made in here, as it's a template
-class GameEntity
+struct EntityTransform
 {
-public:
-    // Default to "Entity" as name
-    GameEntity() : name("Entity") {}
-    ~GameEntity() = default;
-
-    std::string name;
-
-    // Yeah, still struggling myself here
-    template <typename T, typename... Args>
-    T *AddComponent(Args &&...args)
-    {
-        // Create a new component of type T and making it unique
-        auto component = std::make_unique<T>(std::forward<Args>(args)...);
-
-        // Just check all the components if theres one with the same category
-        for (const auto &pair : components)
-        {
-            // More work, it could REALLY just have been a vector, might just rewrite my "genius idea" and use the vector
-            const auto &existingComponent = pair.second;
-            if (existingComponent->category == component->category)
-            {
-                return nullptr;
-            }
-        }
-
-        // Can't be null, so no reference, so we make it a pointer instead of direct
-        T *componentPtr = component.get();
-
-        componentPtr->entity = this;
-
-        // Store the uPointer in the map using the type index as the key
-        components[std::type_index(typeid(T))] = std::move(component);
-
-        return componentPtr;
-    }
-
-    template <typename T>
-    T *GetComponent()
-    {
-        auto component = components.find(std::type_index(typeid(T)));
-
-        if (component != components.end())
-        {
-            // Return as pointer of T
-            return static_cast<T *>(component->second.get());
-        }
-
-        return nullptr;
-    }
-
-    template <typename T>
-    T *RemoveComponent()
-    {
-        auto component = components.find(std::type_index(typeid(T)));
-
-        if (component != components.end())
-        {
-            T *componentPtr = static_cast<T *>(component->second.get());
-
-            componentPtr->entity = nullptr;
-
-            components.erase(component);
-
-            return componentPtr;
-        }
-        return nullptr;
-    }
-
-    template <typename T>
-    bool HasComponent()
-    {
-        return components.find(std::type_index(typeid(T))) != components.end();
-    }
-
-    void SetName(std::string name) { this->name = name; }
-    const std::string &GetName() const { return name; }
-
-private:
-    std::unordered_map<std::type_index, std::unique_ptr<Component>> components;
-};
-
-// TODO: probably make a component header for this
-struct TransformComponent : Component
-{
-    TransformComponent() : Component(ComponentType::Transform, ComponentCategory::Transform) {};
     Vector3 position = {0, 0, 0};
     Vector3 scale = {1, 1, 1};
     Quaternion rotation = QuaternionIdentity();
@@ -259,6 +169,85 @@ struct TransformComponent : Component
     }
 };
 
+class GameEntity
+{
+public:
+    GameEntity() : name("Entity"), EntityTransform() {}
+    ~GameEntity() = default;
+
+    // Default to "Entity" as name
+    std::string name;
+    EntityTransform EntityTransform;
+
+    template <typename T, typename... Args>
+    T *AddComponent(Args &&...args)
+    {
+        // Create a new component of type T and making it unique
+        auto component = std::make_unique<T>(std::forward<Args>(args)...);
+
+        // Just check all the components if theres one with the same category
+        for (const auto &pair : components)
+        {
+            const auto &existingComponent = pair.second;
+            if (existingComponent->category == component->category)
+            {
+                return nullptr;
+            }
+        }
+
+        // Can't be null, so no reference, so we make it a pointer instead of direct
+        T *componentPtr = component.get();
+        componentPtr->entity = this;
+
+        // Store the uPointer in the map using the type index as the key
+        components[std::type_index(typeid(T))] = std::move(component);
+
+        return componentPtr;
+    }
+
+    template <typename T>
+    T *GetComponent()
+    {
+        auto component = components.find(std::type_index(typeid(T)));
+
+        if (component != components.end())
+        {
+            // Return as pointer of T
+            return static_cast<T *>(component->second.get());
+        }
+
+        return nullptr;
+    }
+
+    template <typename T>
+    T *RemoveComponent()
+    {
+        auto component = components.find(std::type_index(typeid(T)));
+
+        if (component != components.end())
+        {
+            T *componentPtr = static_cast<T *>(component->second.get());
+            componentPtr->entity = nullptr;
+            components.erase(component);
+
+            return componentPtr;
+        }
+        return nullptr;
+    }
+
+    template <typename T>
+    bool HasComponent()
+    {
+        return components.find(std::type_index(typeid(T))) != components.end();
+    }
+
+    void SetName(std::string name) { this->name = name; }
+    const std::string &GetName() const { return name; }
+
+private:
+    std::unordered_map<std::type_index, std::unique_ptr<Component>> components;
+};
+
 struct CubeComponent : Component
 {
     CubeComponent() : Component(ComponentType::Cube, ComponentCategory::Object) {}
@@ -267,29 +256,27 @@ struct CubeComponent : Component
 
     Vector3 GetScaledSize() const
     {
-        auto transform = entity->GetComponent<TransformComponent>();
-        if (transform)
+        if (entity)
         {
             return {
-                size.x * transform->scale.x,
-                size.y * transform->scale.y,
-                size.z * transform->scale.z};
+                size.x * entity->EntityTransform.scale.x,
+                size.y * entity->EntityTransform.scale.y,
+                size.z * entity->EntityTransform.scale.z};
         }
         return size;
     }
 
     BoundingBox GetBoundingBox() const
     {
-        auto transform = entity->GetComponent<TransformComponent>();
-        if (!transform)
+        if (!entity)
         {
             return {Vector3{0, 0, 0}, Vector3{0, 0, 0}};
         }
 
         Vector3 scaledSize = GetScaledSize();
         return {
-            Vector3Subtract(transform->position, Vector3Scale(scaledSize, 0.5f)),
-            Vector3Add(transform->position, Vector3Scale(scaledSize, 0.5f))};
+            Vector3Subtract(entity->EntityTransform.position, Vector3Scale(scaledSize, 0.5f)),
+            Vector3Add(entity->EntityTransform.position, Vector3Scale(scaledSize, 0.5f))};
     }
 };
 
@@ -301,12 +288,38 @@ struct SphereComponent : Component
 
     float GetScaledRadius() const
     {
-        auto transform = entity->GetComponent<TransformComponent>();
-        if (transform)
+        if (entity)
         {
-            float avgScale = (transform->scale.x + transform->scale.y + transform->scale.z) / 3.0f;
+            float avgScale = (entity->EntityTransform.scale.x + entity->EntityTransform.scale.y + entity->EntityTransform.scale.z) / 3.0f;
             return radius * avgScale;
         }
         return radius;
+    }
+};
+
+struct MeshComponent : Component
+{
+    MeshComponent() : Component(ComponentType::Mesh, ComponentCategory::Object) {}
+
+    Mesh *mesh = nullptr;
+    Material *material = nullptr;
+
+    Vector3 GetPosition() const
+    {
+        if (entity)
+            return entity->EntityTransform.position;
+        return {0, 0, 0};
+    }
+    Quaternion GetRotation() const
+    {
+        if (entity)
+            return entity->EntityTransform.rotation;
+        return QuaternionIdentity();
+    }
+    Vector3 GetScale() const
+    {
+        if (entity)
+            return entity->EntityTransform.scale;
+        return {1, 1, 1};
     }
 };

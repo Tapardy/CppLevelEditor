@@ -736,7 +736,7 @@ float GizmoSystem::GetRotationAroundAxis(const Ray &mouseRay, int axis, Camera c
  * @param transformComponent The TransformComponent of the target object to be updated, mainly for rotations.
  * @return true if the gizmo system changed the target object, false otherwise.
  */
-bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale, TransformComponent *transformComponent)
+bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quaternion &rotation, Vector3 &scale, EntityTransform *entityTransform)
 {
     if (mode == GizmoMode::NONE)
         return false;
@@ -856,7 +856,7 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
                 changed = true;
             }
         }
-        else if (mode == GizmoMode::ROTATION && transformComponent)
+        else if (mode == GizmoMode::ROTATION && entityTransform)
         {
             float currentAngle = GetRotationAroundAxis(mouseRay, selectedAxis, camera);
             float totalAngleDegrees = currentAngle * RAD2DEG;
@@ -866,7 +866,7 @@ bool GizmoSystem::Update(Camera camera, Ray mouseRay, Vector3 &position, Quatern
             if (fabs(snappedAngleDegrees - lastAppliedDelta) > epsilon)
             {
                 Vector3 axisDir = GetAxisDirection(selectedAxis);
-                transformComponent->RotateAroundWorldAxis(axisDir, snappedAngleDegrees - lastAppliedDelta);
+                entityTransform->RotateAroundWorldAxis(axisDir, snappedAngleDegrees - lastAppliedDelta);
                 lastAppliedDelta = snappedAngleDegrees;
                 changed = true;
             }

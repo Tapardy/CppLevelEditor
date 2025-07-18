@@ -144,9 +144,6 @@ int main()
                     selectedEntity = nullptr;
                     for (auto entity : entities)
                     {
-                        auto transform = entity->GetComponent<TransformComponent>();
-                        if (!transform)
-                            continue;
 
                         if (auto cube = entity->GetComponent<CubeComponent>())
                         {
@@ -156,7 +153,7 @@ int main()
                         else if (auto sphere = entity->GetComponent<SphereComponent>())
                         {
                             float scaledRadius = sphere->GetScaledRadius();
-                            collision = GetRayCollisionSphere(mouseRay, transform->position, scaledRadius);
+                            collision = GetRayCollisionSphere(mouseRay, entity->EntityTransform.position, scaledRadius);
                         }
                         else
                             continue;

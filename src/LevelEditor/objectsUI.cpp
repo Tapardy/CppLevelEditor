@@ -27,27 +27,20 @@ void ObjectUI::UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, 
         return;
     }
 
-    auto transform = selectedEntity->GetComponent<TransformComponent>();
-    if (!transform)
-    {
-        gizmoSystem.Deactivate();
-        return;
-    }
-
     static Vector3 *lastPositionTarget = nullptr;
     static Quaternion *lastRotationTarget = nullptr;
     static Vector3 *lastScaleTarget = nullptr;
 
-    bool targetsChanged = (lastPositionTarget != &transform->position) || (lastRotationTarget != &transform->rotation) || (lastScaleTarget != &transform->scale);
+    bool targetsChanged = (lastPositionTarget != &selectedEntity->EntityTransform.position) || (lastRotationTarget != &selectedEntity->EntityTransform.rotation) || (lastScaleTarget != &selectedEntity->EntityTransform.scale);
 
     if (targetsChanged)
     {
-        gizmoSystem.SetTarget(&transform->position, &transform->rotation, &transform->scale);
-        lastPositionTarget = &transform->position;
-        lastRotationTarget = &transform->rotation;
-        lastScaleTarget = &transform->scale;
+        gizmoSystem.SetTarget(&selectedEntity->EntityTransform.position, &selectedEntity->EntityTransform.rotation, &selectedEntity->EntityTransform.scale);
+        lastPositionTarget = &selectedEntity->EntityTransform.position;
+        lastRotationTarget = &selectedEntity->EntityTransform.rotation;
+        lastScaleTarget = &selectedEntity->EntityTransform.scale;
     }
-    gizmoSystem.Update(camera, mouseRay, transform->position, transform->rotation, transform->scale, transform);
+    gizmoSystem.Update(camera, mouseRay, selectedEntity->EntityTransform.position, selectedEntity->EntityTransform.rotation, selectedEntity->EntityTransform.scale, &selectedEntity->EntityTransform);
 
     gizmoSystem.Render(camera, mouseRay);
 }
@@ -62,7 +55,6 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
         if (ImGui::Button("Create Empty Entity"))
         {
             GameEntity *newEntity = new GameEntity();
-            (newEntity)->AddComponent<TransformComponent>();
             entities.push_back(newEntity);
             *selectedEntity = newEntity;
         }
@@ -71,16 +63,11 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
     if (*selectedEntity)
     {
         // Always on top, looks nice
-        if (auto transform = (*selectedEntity)->GetComponent<TransformComponent>())
-        {
-            ObjectUI::RenderTransformComponentUI(transform, gizmoSystem);
-        }
+        ObjectUI::RenderTransformComponentUI(selectedEntity, gizmoSystem);
 
         // Basically the dropdown menu where you can add components
         if (ImGui::BeginPopup("AddComponentPopup"))
         {
-            if (ImGui::MenuItem("Transform") && !(*selectedEntity)->GetComponent<TransformComponent>())
-                (*selectedEntity)->AddComponent<TransformComponent>();
             if (ImGui::MenuItem("Cube") && !(*selectedEntity)->GetComponent<CubeComponent>())
                 (*selectedEntity)->AddComponent<CubeComponent>();
             if (ImGui::MenuItem("Sphere") && !(*selectedEntity)->GetComponent<SphereComponent>())
@@ -157,243 +144,244 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
     ImGui::End();
 }
 
-void ObjectUI::RenderTransformComponentUI(TransformComponent *transform, GizmoSystem &gizmoSystem)
+void ObjectUI::RenderTransformComponentUI(GameEntity **selectedEntity, GizmoSystem &gizmoSystem)
 {
-    if (transform)
+    GameEntity *entity = *selectedEntity;
+    if (ImGui::CollapsingHeader("Transform Component", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        if (ImGui::CollapsingHeader("Transform Component", ImGuiTreeNodeFlags_DefaultOpen))
+        ImGui::Text("Gizmo Mode:");
+        ImGui::SameLine();
+
+        GizmoMode currentMode = gizmoSystem.GetMode();
+        const char *modeNames[] = {"None", "Position", "Rotation", "Scale"};
+        int currentModeIndex = static_cast<int>(currentMode);
+
+        if (ImGui::Combo("##GizmoMode", &currentModeIndex, modeNames, 4))
         {
-            ImGui::Text("Gizmo Mode:");
-            ImGui::SameLine();
+            gizmoSystem.SetMode(static_cast<GizmoMode>(currentModeIndex));
+        }
 
-            GizmoMode currentMode = gizmoSystem.GetMode();
-            const char *modeNames[] = {"None", "Position", "Rotation", "Scale"};
-            int currentModeIndex = static_cast<int>(currentMode);
+        if (ImGui::CollapsingHeader("Gizmo Settings"))
+        {
+            float snapStep, rotationSnap, scaleSnap;
+            gizmoSystem.GetSnapStep(&snapStep);
+            gizmoSystem.GetRotationSnap(&rotationSnap);
+            gizmoSystem.GetScaleSnap(&scaleSnap);
 
-            if (ImGui::Combo("##GizmoMode", &currentModeIndex, modeNames, 4))
+            if (ImGui::InputFloat("Position Snap", &snapStep, 0.01f, 0.1f, "%.3f"))
             {
-                gizmoSystem.SetMode(static_cast<GizmoMode>(currentModeIndex));
+                gizmoSystem.SetSnapStep(snapStep);
             }
 
-            if (ImGui::CollapsingHeader("Gizmo Settings"))
+            if (ImGui::InputFloat("Rotation Snap (degrees)", &rotationSnap, 1.0f, 15.0f, "%.1f"))
             {
-                float snapStep, rotationSnap, scaleSnap;
-                gizmoSystem.GetSnapStep(&snapStep);
-                gizmoSystem.GetRotationSnap(&rotationSnap);
-                gizmoSystem.GetScaleSnap(&scaleSnap);
-
-                if (ImGui::InputFloat("Position Snap", &snapStep, 0.01f, 0.1f, "%.3f"))
-                {
-                    gizmoSystem.SetSnapStep(snapStep);
-                }
-
-                if (ImGui::InputFloat("Rotation Snap (degrees)", &rotationSnap, 1.0f, 15.0f, "%.1f"))
-                {
-                    gizmoSystem.SetRotationSnap(rotationSnap);
-                }
-
-                if (ImGui::InputFloat("Scale Snap", &scaleSnap, 0.01f, 0.1f, "%.3f"))
-                {
-                    gizmoSystem.SetScaleSnap(scaleSnap);
-                }
+                gizmoSystem.SetRotationSnap(rotationSnap);
             }
 
-            ImGui::Separator();
-
-            // Position UI
-            ImGui::Text("Position");
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-
-            if (gizmoSystem.IsActive() &&
-                gizmoSystem.GetMode() == GizmoMode::POSITION &&
-                gizmoSystem.GetTargetPositionAddress() == &transform->position)
+            if (ImGui::InputFloat("Scale Snap", &scaleSnap, 0.01f, 0.1f, "%.3f"))
             {
-                ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
-                ImGui::SameLine();
-                ImGui::TextDisabled("[Position Gizmo]");
+                gizmoSystem.SetScaleSnap(scaleSnap);
             }
-            else
+        }
+
+        ImGui::Separator();
+
+        // Position UI
+        ImGui::Text("Position");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+
+        if (gizmoSystem.IsActive() &&
+            gizmoSystem.GetMode() == GizmoMode::POSITION &&
+            gizmoSystem.GetTargetPositionAddress() == &entity->EntityTransform.position)
+        {
+            ImGui::InputFloat3("##Position", &entity->EntityTransform.position.x, "%.2f");
+            ImGui::SameLine();
+            ImGui::TextDisabled("[Position Gizmo]");
+        }
+        else
+        {
+            ImGui::InputFloat3("##Position", &entity->EntityTransform.position.x, "%.2f");
+        }
+
+        // EULER ANGLE ROTATION UI
+        ImGui::Separator();
+        ImGui::Text("Rotation");
+
+        if (gizmoSystem.IsActive() &&
+            gizmoSystem.GetMode() == GizmoMode::ROTATION &&
+            gizmoSystem.GetTargetRotationAddress() == &entity->EntityTransform.rotation)
+        {
+            ImGui::TextDisabled("[Rotation Gizmo Active]");
+        }
+
+        // Get current euler angles for display/editing
+        Vector3 eulerAngles = entity->EntityTransform.GetEulerAngles();
+        if (ImGui::InputFloat3("##Rotation", &eulerAngles.x, "%.2f"))
+        {
+            if (!(gizmoSystem.IsActive() && gizmoSystem.GetMode() == GizmoMode::ROTATION))
             {
-                ImGui::InputFloat3("##Position", &transform->position.x, "%.2f");
+                entity->EntityTransform.SetEulerAngles(eulerAngles);
             }
+        }
 
-            // EULER ANGLE ROTATION UI
-            ImGui::Separator();
-            ImGui::Text("Rotation");
+        ImGui::TextDisabled("(Pitch, Yaw, Roll in degrees)");
 
-            if (gizmoSystem.IsActive() &&
-                gizmoSystem.GetMode() == GizmoMode::ROTATION &&
-                gizmoSystem.GetTargetRotationAddress() == &transform->rotation)
+        ImGui::Separator();
+        ImGui::Text("Quick Rotations:");
+
+        // World space rotation buttons
+        ImGui::Text("World Space:");
+        ImGui::BeginGroup();
+        if (ImGui::Button("X+15°"))
+            entity->EntityTransform.RotateAroundWorldAxis({1, 0, 0}, 15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("X-15°"))
+            entity->EntityTransform.RotateAroundWorldAxis({1, 0, 0}, -15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Y+15°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 1, 0}, 15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Y-15°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 1, 0}, -15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Z+15°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 0, 1}, 15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Z-15°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 0, 1}, -15.0f);
+        ImGui::EndGroup();
+
+        ImGui::BeginGroup();
+        if (ImGui::Button("X+90°"))
+            entity->EntityTransform.RotateAroundWorldAxis({1, 0, 0}, 90.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("X-90°"))
+            entity->EntityTransform.RotateAroundWorldAxis({1, 0, 0}, -90.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Y+90°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 1, 0}, 90.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Y-90°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 1, 0}, -90.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Z+90°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 0, 1}, 90.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Z-90°"))
+            entity->EntityTransform.RotateAroundWorldAxis({0, 0, 1}, -90.0f);
+        ImGui::EndGroup();
+
+        // Local space rotation buttons
+        ImGui::Text("Local Space:");
+        ImGui::BeginGroup();
+
+        if (ImGui::Button("Pitch+15°"))
+            entity->EntityTransform.RotateAroundLocalAxis({1, 0, 0}, 15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Pitch-15°"))
+            entity->EntityTransform.RotateAroundLocalAxis({1, 0, 0}, -15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Yaw+15°"))
+            entity->EntityTransform.RotateAroundLocalAxis({0, 1, 0}, 15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Yaw-15°"))
+            entity->EntityTransform.RotateAroundLocalAxis({0, 1, 0}, -15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Roll+15°"))
+            entity->EntityTransform.RotateAroundLocalAxis({0, 0, 1}, 15.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Roll-15°"))
+            entity->EntityTransform.RotateAroundLocalAxis({0, 0, 1}, -15.0f);
+
+        ImGui::EndGroup();
+
+        // Utility buttons
+        ImGui::Separator();
+        if (ImGui::Button("Reset Rotation"))
+        {
+            entity->EntityTransform.ResetRotation();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Snap to Grid"))
+        {
+            // Snap to nearest 15-degree increments
+            Vector3 current = entity->EntityTransform.GetEulerAngles();
+            Vector3 snapped = {
+                roundf(current.x / 15.0f) * 15.0f,
+                roundf(current.y / 15.0f) * 15.0f,
+                roundf(current.z / 15.0f) * 15.0f};
+            entity->EntityTransform.SetEulerAngles(snapped);
+        }
+
+        if (ImGui::CollapsingHeader("Orientation Vectors"))
+        {
+            Vector3 forward = entity->EntityTransform.GetForward();
+            Vector3 right = entity->EntityTransform.GetRight();
+            Vector3 up = entity->EntityTransform.GetUp();
+
+            ImGui::Text("Forward: (%.2f, %.2f, %.2f)", forward.x, forward.y, forward.z);
+            ImGui::Text("Right:   (%.2f, %.2f, %.2f)", right.x, right.y, right.z);
+            ImGui::Text("Up:      (%.2f, %.2f, %.2f)", up.x, up.y, up.z);
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Scale");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+
+        if (gizmoSystem.IsActive() &&
+            gizmoSystem.GetMode() == GizmoMode::SCALE &&
+            gizmoSystem.GetTargetScaleAddress() == &entity->EntityTransform.scale)
+        {
+            ImGui::InputFloat3("##Scale", &entity->EntityTransform.scale.x, "%.2f");
+            ImGui::SameLine();
+            ImGui::TextDisabled("[Scale Gizmo]");
+        }
+        else
+        {
+            ImGui::InputFloat3("##Scale", &entity->EntityTransform.scale.x, "%.2f");
+        }
+
+        if (entity->EntityTransform.scale.x <= 0)
+            entity->EntityTransform.scale.x = 0.1f;
+        if (entity->EntityTransform.scale.y <= 0)
+            entity->EntityTransform.scale.y = 0.1f;
+        if (entity->EntityTransform.scale.z <= 0)
+            entity->EntityTransform.scale.z = 0.1f;
+
+        ImGui::BeginGroup();
+        if (ImGui::Button("Uniform Scale"))
+        {
+            ImGui::OpenPopup("UniformScalePopup");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Reset Scale"))
+        {
+            entity->EntityTransform.scale = {1.0f, 1.0f, 1.0f};
+        }
+        ImGui::EndGroup();
+
+        if (ImGui::BeginPopup("UniformScalePopup"))
+        {
+            static float uniformScale = 1.0f;
+            ImGui::Text("Uniform Scale Factor");
+            if (ImGui::InputFloat("##UniformScale", &uniformScale, 0.1f, 0.5f, "%.2f") && uniformScale > 0)
             {
-                ImGui::TextDisabled("[Rotation Gizmo Active]");
+                entity->EntityTransform.scale = {uniformScale, uniformScale, uniformScale};
             }
 
-            // Get current euler angles for display/editing
-            Vector3 eulerAngles = transform->GetEulerAngles();
-            if (ImGui::InputFloat3("##Rotation", &eulerAngles.x, "%.2f"))
+            if (ImGui::Button("Apply"))
             {
-                if (!(gizmoSystem.IsActive() && gizmoSystem.GetMode() == GizmoMode::ROTATION))
-                {
-                    transform->SetEulerAngles(eulerAngles);
-                }
+                ImGui::CloseCurrentPopup();
             }
 
-            ImGui::TextDisabled("(Pitch, Yaw, Roll in degrees)");
-
-            ImGui::Separator();
-            ImGui::Text("Quick Rotations:");
-
-            // World space rotation buttons
-            ImGui::Text("World Space:");
-            ImGui::BeginGroup();
-            if (ImGui::Button("X+15°"))
-                transform->RotateAroundWorldAxis({1, 0, 0}, 15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("X-15°"))
-                transform->RotateAroundWorldAxis({1, 0, 0}, -15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Y+15°"))
-                transform->RotateAroundWorldAxis({0, 1, 0}, 15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Y-15°"))
-                transform->RotateAroundWorldAxis({0, 1, 0}, -15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Z+15°"))
-                transform->RotateAroundWorldAxis({0, 0, 1}, 15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Z-15°"))
-                transform->RotateAroundWorldAxis({0, 0, 1}, -15.0f);
-            ImGui::EndGroup();
-
-            ImGui::BeginGroup();
-            if (ImGui::Button("X+90°"))
-                transform->RotateAroundWorldAxis({1, 0, 0}, 90.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("X-90°"))
-                transform->RotateAroundWorldAxis({1, 0, 0}, -90.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Y+90°"))
-                transform->RotateAroundWorldAxis({0, 1, 0}, 90.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Y-90°"))
-                transform->RotateAroundWorldAxis({0, 1, 0}, -90.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Z+90°"))
-                transform->RotateAroundWorldAxis({0, 0, 1}, 90.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Z-90°"))
-                transform->RotateAroundWorldAxis({0, 0, 1}, -90.0f);
-            ImGui::EndGroup();
-
-            // Local space rotation buttons
-            ImGui::Text("Local Space:");
-            ImGui::BeginGroup();
-            if (ImGui::Button("Pitch+15°"))
-                transform->RotateAroundLocalAxis({1, 0, 0}, 15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Pitch-15°"))
-                transform->RotateAroundLocalAxis({1, 0, 0}, -15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Yaw+15°"))
-                transform->RotateAroundLocalAxis({0, 1, 0}, 15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Yaw-15°"))
-                transform->RotateAroundLocalAxis({0, 1, 0}, -15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Roll+15°"))
-                transform->RotateAroundLocalAxis({0, 0, 1}, 15.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Roll-15°"))
-                transform->RotateAroundLocalAxis({0, 0, 1}, -15.0f);
-            ImGui::EndGroup();
-
-            // Utility buttons
-            ImGui::Separator();
-            if (ImGui::Button("Reset Rotation"))
-            {
-                transform->ResetRotation();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Snap to Grid"))
-            {
-                // Snap to nearest 15-degree increments
-                Vector3 current = transform->GetEulerAngles();
-                Vector3 snapped = {
-                    roundf(current.x / 15.0f) * 15.0f,
-                    roundf(current.y / 15.0f) * 15.0f,
-                    roundf(current.z / 15.0f) * 15.0f};
-                transform->SetEulerAngles(snapped);
-            }
-
-            if (ImGui::CollapsingHeader("Orientation Vectors"))
-            {
-                Vector3 forward = transform->GetForward();
-                Vector3 right = transform->GetRight();
-                Vector3 up = transform->GetUp();
-
-                ImGui::Text("Forward: (%.2f, %.2f, %.2f)", forward.x, forward.y, forward.z);
-                ImGui::Text("Right:   (%.2f, %.2f, %.2f)", right.x, right.y, right.z);
-                ImGui::Text("Up:      (%.2f, %.2f, %.2f)", up.x, up.y, up.z);
-            }
-
-            ImGui::Separator();
-            ImGui::Text("Scale");
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-
-            if (gizmoSystem.IsActive() &&
-                gizmoSystem.GetMode() == GizmoMode::SCALE &&
-                gizmoSystem.GetTargetScaleAddress() == &transform->scale)
-            {
-                ImGui::InputFloat3("##Scale", &transform->scale.x, "%.2f");
-                ImGui::SameLine();
-                ImGui::TextDisabled("[Scale Gizmo]");
-            }
-            else
-            {
-                ImGui::InputFloat3("##Scale", &transform->scale.x, "%.2f");
-            }
-
-            if (transform->scale.x <= 0)
-                transform->scale.x = 0.1f;
-            if (transform->scale.y <= 0)
-                transform->scale.y = 0.1f;
-            if (transform->scale.z <= 0)
-                transform->scale.z = 0.1f;
-
-            ImGui::BeginGroup();
-            if (ImGui::Button("Uniform Scale"))
-            {
-                ImGui::OpenPopup("UniformScalePopup");
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Reset Scale"))
-            {
-                transform->scale = {1.0f, 1.0f, 1.0f};
-            }
-            ImGui::EndGroup();
-
-            if (ImGui::BeginPopup("UniformScalePopup"))
-            {
-                static float uniformScale = 1.0f;
-                ImGui::Text("Uniform Scale Factor");
-                if (ImGui::InputFloat("##UniformScale", &uniformScale, 0.1f, 0.5f, "%.2f") && uniformScale > 0)
-                {
-                    transform->scale = {uniformScale, uniformScale, uniformScale};
-                }
-
-                if (ImGui::Button("Apply"))
-                {
-                    ImGui::CloseCurrentPopup();
-                }
-
-                ImGui::EndPopup();
-            }
+            ImGui::EndPopup();
         }
     }
 }
 
 void ObjectUI::RenderCubeComponentUI(CubeComponent *cube)
 {
+    GameEntity *entity = cube->entity;
     if (cube)
     {
         ImGui::Separator();
@@ -409,16 +397,12 @@ void ObjectUI::RenderCubeComponentUI(CubeComponent *cube)
         if (cube->size.z <= 0)
             cube->size.z = 0.1f;
 
-        auto transform = cube->entity->GetComponent<TransformComponent>();
-        if (transform)
-        {
-            Vector3 scaledSize = {
-                cube->size.x * transform->scale.x,
-                cube->size.y * transform->scale.y,
-                cube->size.z * transform->scale.z};
+        Vector3 scaledSize = {
+            cube->size.x * entity->EntityTransform.scale.x,
+            cube->size.y * entity->EntityTransform.scale.y,
+            cube->size.z * entity->EntityTransform.scale.z};
 
-            ImGui::TextDisabled("(Scaled: %.2f, %.2f, %.2f)", scaledSize.x, scaledSize.y, scaledSize.z);
-        }
+        ImGui::TextDisabled("(Scaled: %.2f, %.2f, %.2f)", scaledSize.x, scaledSize.y, scaledSize.z);
 
         ImGui::Text("Color");
         ImVec4 colorVec = rlImGuiColors::Convert(cube->color);
@@ -431,6 +415,7 @@ void ObjectUI::RenderCubeComponentUI(CubeComponent *cube)
 
 void ObjectUI::RenderSphereComponentUI(SphereComponent *sphere)
 {
+    GameEntity *entity = sphere->entity;
     if (sphere)
     {
         ImGui::Separator();
@@ -441,13 +426,9 @@ void ObjectUI::RenderSphereComponentUI(SphereComponent *sphere)
         if (sphere->radius <= 0)
             sphere->radius = 0.1f;
 
-        auto transform = sphere->entity->GetComponent<TransformComponent>();
-        if (transform)
-        {
-            float avgScale = (transform->scale.x + transform->scale.y + transform->scale.z) / 3.0f;
-            float scaledRadius = sphere->radius * avgScale;
-            ImGui::TextDisabled("(Scaled: %.2f)", scaledRadius);
-        }
+        float avgScale = (entity->EntityTransform.scale.x + entity->EntityTransform.scale.y + entity->EntityTransform.scale.z) / 3.0f;
+        float scaledRadius = sphere->radius * avgScale;
+        ImGui::TextDisabled("(Scaled: %.2f)", scaledRadius);
 
         ImGui::Text("Color");
         ImVec4 colorVec = rlImGuiColors::Convert(sphere->color);

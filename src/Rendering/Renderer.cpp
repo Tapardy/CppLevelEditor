@@ -6,14 +6,10 @@ void Renderer::RenderComponents(const std::vector<GameEntity *> &entities, GameE
 {
     for (auto entity : entities)
     {
-        auto transform = entity->GetComponent<TransformComponent>();
-        if (!transform)
-            continue;
-
         rlPushMatrix();
-        rlTranslatef(transform->position.x, transform->position.y, transform->position.z);
+        rlTranslatef(entity->EntityTransform.position.x, entity->EntityTransform.position.y, entity->EntityTransform.position.z);
 
-        Matrix transformMatrix = transform->GetTransformMatrix();
+        Matrix transformMatrix = entity->EntityTransform.GetTransformMatrix();
         rlMultMatrixf(MatrixToFloat(transformMatrix));
 
         if (auto cube = entity->GetComponent<CubeComponent>())
@@ -27,6 +23,9 @@ void Renderer::RenderComponents(const std::vector<GameEntity *> &entities, GameE
             DrawSphere(Vector3{0, 0, 0}, sphere->radius, sphere->color);
             if (entity == selectedEntity)
                 DrawSphereWires(Vector3{0, 0, 0}, sphere->radius + 0.01f, 16, 16, BLACK);
+        }
+        else if (auto mesh = entity->GetComponent<MeshComponent>())
+        {
         }
 
         rlPopMatrix();
