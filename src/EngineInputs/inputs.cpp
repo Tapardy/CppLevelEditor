@@ -9,6 +9,8 @@ int InputSystem::_gamepadIndex = 0;
 void InputSystem::RegisterObserver(InputObserver *observer)
 {
     DebugPrint("Observer registered");
+    DebugWarn("Observer registered");
+    DebugError("Observer registered");
     observers.push_back(observer);
 }
 
