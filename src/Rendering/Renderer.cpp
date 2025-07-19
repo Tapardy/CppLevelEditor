@@ -24,8 +24,12 @@ void Renderer::RenderComponents(const std::vector<GameEntity *> &entities, GameE
             if (entity == selectedEntity)
                 DrawSphereWires(Vector3{0, 0, 0}, sphere->radius + 0.01f, 16, 16, BLACK);
         }
-        else if (auto mesh = entity->GetComponent<MeshComponent>())
+        else if (auto model = entity->GetComponent<ModelComponent>())
         {
+            if (model->IsLoaded())
+            {
+                DrawModel(model->model, Vector3{0, 0, 0}, 1.0f, WHITE);
+            }
         }
 
         rlPopMatrix();

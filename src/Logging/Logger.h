@@ -3,7 +3,6 @@
 #include <vector>
 #include <sstream>
 #include <typeinfo>
-#include "../LevelEditor/gameEntity.h"
 
 enum class LogLevel
 {
@@ -38,23 +37,20 @@ inline std::string ToString(float v) { return std::to_string(v); }
 inline std::string ToString(double v) { return std::to_string(v); }
 inline std::string ToString(bool v) { return v ? "true" : "false"; }
 
-// Fallback for pointers (prints type name)
+// Essentially fallback to literally anything. It will print the type and then the memory address, unless its defined with a string type, like name
 template <typename T>
 inline std::string ToString(const T *obj)
 {
     if (!obj)
         return "[null]";
-    return std::string("[") + typeid(T).name() + "]";
-}
 
-// Specialization Templates
-class GameEntity;
-template <>
-inline std::string ToString<GameEntity>(const GameEntity *obj)
-{
-    if (!obj)
-        return "[null]";
-    return obj->GetName();
+    // Try to get a nice type name (compiler dependent)
+    std::string typeName = typeid(T).name();
+
+    // Convert pointer address to hex
+    std::ostringstream oss;
+    oss << "[" << typeName << "@0x" << std::hex << reinterpret_cast<uintptr_t>(obj) << "]";
+    return oss.str();
 }
 
 // Logging Functions

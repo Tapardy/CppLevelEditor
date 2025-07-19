@@ -2,11 +2,14 @@
 #include "../../imgui/imgui.h"
 #include "../../imgui/rlImGui.h"
 #include "../../imgui/rlImGuiColors.h"
+#include "../imgui/imfilebrowser.h"
 #include "../typedef.h"
 #include "objectsUI.h"
 #include "GameEntity.h"
 #include <vector>
 #include <string>
+
+ImGui::FileBrowser fileDialog;
 
 bool RenderRemoveComponentButton()
 {
@@ -72,6 +75,8 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
                 (*selectedEntity)->AddComponent<CubeComponent>();
             if (ImGui::MenuItem("Sphere") && !(*selectedEntity)->GetComponent<SphereComponent>())
                 (*selectedEntity)->AddComponent<SphereComponent>();
+            if (ImGui::MenuItem("Mesh") && !(*selectedEntity)->GetComponent<ModelComponent>())
+                (*selectedEntity)->AddComponent<ModelComponent>();
             ImGui::EndPopup();
         }
 
@@ -98,6 +103,18 @@ void ObjectUI::RenderGeneralUI(GameEntity **selectedEntity, std::vector<GameEnti
             else
             {
                 ObjectUI::RenderSphereComponentUI(sphere);
+            }
+        }
+        if (auto model = (*selectedEntity)->GetComponent<ModelComponent>())
+        {
+            ImGui::Text("Model Component");
+            if (RenderRemoveComponentButton())
+            {
+                (*selectedEntity)->RemoveComponent<ModelComponent>();
+            }
+            else
+            {
+                ObjectUI::RenderModelComponentUI(model);
             }
         }
 
@@ -437,4 +454,73 @@ void ObjectUI::RenderSphereComponentUI(SphereComponent *sphere)
             sphere->color = rlImGuiColors::Convert(colorVec);
         }
     }
+}
+
+void ObjectUI::RenderModelComponentUI(ModelComponent *model)
+{
+    if (!model)
+        return;
+
+    GameEntity *entity = model->entity;
+
+    ImGui::Separator();
+
+    static bool fileBrowserInitialized = false;
+    if (!fileBrowserInitialized)
+    {
+        fileDialog.SetTitle("Select Model File");
+        fileDialog.SetTypeFilters({".obj", ".iqm", ".gltf", ".glb", ".vox"});
+        fileBrowserInitialized = true;
+    }
+
+    ImGui::Text("Model File");
+
+    std::string currentFile = model->filePath.empty() ? "No file selected" : model->filePath;
+    ImGui::TextWrapped("Current: %s", currentFile.c_str());
+
+    if (ImGui::Button("Browse..."))
+    {
+        fileDialog.Open();
+    }
+
+    fileDialog.Display();
+
+    if (fileDialog.HasSelected())
+    {
+        std::string selectedPath = fileDialog.GetSelected().string();
+
+        if (model->LoadModelFromFile(selectedPath))
+        {
+            model->filePath = selectedPath;
+            ImGui::OpenPopup("ModelLoadSuccess");
+        }
+        else
+        {
+            ImGui::OpenPopup("ModelLoadError");
+        }
+
+        fileDialog.ClearSelected();
+    }
+
+    if (!model->filePath.empty())
+    {
+        ImGui::SameLine();
+        if (ImGui::Button("Clear"))
+        {
+            model->ClearModel();
+        }
+    }
+
+    // I just like seeing this
+    if (!model->filePath.empty() && model->IsLoaded())
+    {
+        ImGui::Separator();
+        ImGui::Text("Model Info:");
+        ImGui::TextDisabled("Vertices: %d", model->GetVertexCount());
+        ImGui::TextDisabled("Triangles: %d", model->GetTriangleCount());
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Material");
+    // TODO: Implement
 }

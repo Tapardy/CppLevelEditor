@@ -11,6 +11,7 @@ public:
     static void RenderTransformComponentUI(GameEntity **selectedEntity, GizmoSystem &gizmoSystem);
     static void RenderCubeComponentUI(CubeComponent *cube);
     static void RenderSphereComponentUI(SphereComponent *sphere);
+    static void RenderModelComponentUI(ModelComponent *model);
 
     static void UpdateAndRenderGizmos(Camera camera, GameEntity *selectedEntity, Ray mouseRay, GizmoSystem &gizmoSystem);
     static bool IsGizmoClicked(Camera camera, Ray mouseRay, GizmoSystem &gizmoSystem);

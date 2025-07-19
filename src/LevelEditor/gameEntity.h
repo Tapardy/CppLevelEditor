@@ -7,6 +7,7 @@
 #include <typeindex>
 #include <raymath.h>
 #include <string>
+#include "../Logging/Logger.h"
 
 // Forward declaration, otherwise the component it doesn't know (kinda need it cuz templates have to be here)
 class GameEntity;
@@ -289,29 +290,78 @@ struct SphereComponent : Component
     }
 };
 
-struct MeshComponent : Component
+struct ModelComponent : Component
 {
-    MeshComponent() : Component(ComponentCategory::Object) {}
+    ModelComponent() : Component(ComponentCategory::Object) {}
 
-    Mesh *mesh = nullptr;
-    Material *material = nullptr;
+    Model model = {0};
+    Material material = LoadMaterialDefault();
+    std::string filePath;
 
     Vector3 GetPosition() const
     {
-        if (entity)
-            return entity->EntityTransform.position;
-        return {0, 0, 0};
+        return entity ? entity->EntityTransform.position : Vector3{0, 0, 0};
     }
+
     Quaternion GetRotation() const
     {
-        if (entity)
-            return entity->EntityTransform.rotation;
-        return QuaternionIdentity();
+        return entity ? entity->EntityTransform.rotation : QuaternionIdentity();
     }
+
     Vector3 GetScale() const
     {
-        if (entity)
-            return entity->EntityTransform.scale;
-        return {1, 1, 1};
+        return entity ? entity->EntityTransform.scale : Vector3{1, 1, 1};
+    }
+
+    // Load a full model from file (clears previous data!)
+    bool LoadModelFromFile(const std::string &path)
+    {
+        DebugPrint("Loading model: ", path, entity, entity->GetName());
+        ClearModel();
+
+        model = LoadModel(path.c_str());
+        if (IsModelValid(model) && model.meshCount > 0)
+        {
+            filePath = path;
+
+            if (model.materialCount > 0)
+                material = model.materials[0];
+
+            return true;
+        }
+
+        filePath.clear();
+        model = {0};
+        return false;
+    }
+
+    void ClearModel()
+    {
+        if (IsModelValid(model))
+        {
+            UnloadModel(model);
+            model = {0};
+        }
+        filePath.clear();
+    }
+
+    bool IsLoaded() const
+    {
+        return IsModelValid(model) && model.meshCount > 0 && !filePath.empty();
+    }
+
+    int GetVertexCount() const
+    {
+        return IsLoaded() ? model.meshes[0].vertexCount : 0;
+    }
+
+    int GetTriangleCount() const
+    {
+        return IsLoaded() ? model.meshes[0].triangleCount : 0;
+    }
+
+    ~ModelComponent()
+    {
+        ClearModel();
     }
 };

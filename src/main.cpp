@@ -113,7 +113,7 @@ int main()
         }
 
         // Simulate a godot cam and make it much easier for me to move objects
-        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) && !io.WantCaptureMouse)
         {
             UpdateCamera(&camera, CAMERA_FREE);
             DisableCursor();
@@ -155,6 +155,12 @@ int main()
                             float scaledRadius = sphere->GetScaledRadius();
                             collision = GetRayCollisionSphere(mouseRay, entity->EntityTransform.position, scaledRadius);
                         }
+                        if (auto model = entity->GetComponent<ModelComponent>())
+                        {
+                            Matrix transform = entity->EntityTransform.GetTransformMatrix();
+                            collision = GetRayCollisionMesh(mouseRay, model->model.meshes[0], transform);
+                        }
+
                         else
                             continue;
 
