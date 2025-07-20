@@ -56,19 +56,6 @@ void RenderConsoleUI(std::vector<LogEntry> &logBuffer)
 
     textSelect.update();
 
-    if (ImGui::BeginPopupContextWindow())
-    {
-        ImGui::BeginDisabled(!textSelect.hasSelection());
-        if (ImGui::MenuItem("Copy", "Ctrl+C"))
-            textSelect.copy();
-        ImGui::EndDisabled();
-
-        if (ImGui::MenuItem("Select All", "Ctrl+A"))
-            textSelect.selectAll();
-
-        ImGui::EndPopup();
-    }
-
     if (autoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 5.0f)
         ImGui::SetScrollHereY(1.0f);
 
