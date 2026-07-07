@@ -113,7 +113,7 @@ int main()
         }
 
         // Simulate a godot cam and make it much easier for me to move objects
-        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) && !io.WantCaptureMouse)
         {
             UpdateCamera(&camera, CAMERA_FREE);
             DisableCursor();
@@ -121,7 +121,7 @@ int main()
         else if (IsCursorHidden())
             EnableCursor();
 
-        if (!io.WantTextInput)
+        if (!io.WantTextInput && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
         {
             inputSystem.CheckInputs();
         }
@@ -144,9 +144,6 @@ int main()
                     selectedEntity = nullptr;
                     for (auto entity : entities)
                     {
-                        auto transform = entity->GetComponent<TransformComponent>();
-                        if (!transform)
-                            continue;
 
                         if (auto cube = entity->GetComponent<CubeComponent>())
                         {
@@ -156,8 +153,14 @@ int main()
                         else if (auto sphere = entity->GetComponent<SphereComponent>())
                         {
                             float scaledRadius = sphere->GetScaledRadius();
-                            collision = GetRayCollisionSphere(mouseRay, transform->position, scaledRadius);
+                            collision = GetRayCollisionSphere(mouseRay, entity->EntityTransform.position, scaledRadius);
                         }
+                        if (auto model = entity->GetComponent<ModelComponent>())
+                        {
+                            Matrix transform = entity->EntityTransform.GetTransformMatrix();
+                            collision = GetRayCollisionMesh(mouseRay, model->model.meshes[0], transform);
+                        }
+
                         else
                             continue;
 
@@ -171,7 +174,7 @@ int main()
             }
         }
 
-        if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        if (selectedEntity)
         {
             // Draw gizmos here, so it is synced to the object you're dragging, might change this to just update gizmos and render them below
             ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);
@@ -203,7 +206,7 @@ int main()
 
             BeginMode3D(camera);
             rlDisableDepthTest();
-            if (selectedEntity && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+            if (selectedEntity)
             {
                 // Draw gizmos again, as otherwise they won't be on top
                 ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);

@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 file(GLOB_RECURSE SOURCES src/*.cpp)
-file(GLOB IMGUI_SOURCES imgui/*.cpp)
+file(GLOB_RECURSE IMGUI_SOURCES imgui/*.cpp)
+file(GLOB_RECURSE UTF8_SOURCES utf8/*.cpp)
 
 add_executable(game ${SOURCES} ${IMGUI_SOURCES})
 
