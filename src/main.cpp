@@ -14,55 +14,10 @@
 #include "../imgui/rlImGuiColors.h"
 #include "../imgui/imguiStyle.h"
 #include "Rendering/Renderer.h"
+#include "Rendering/RaylibRenderer.h"
 #include "Logging/Logger.h"
 #include "Logging/ConsoleUI.h"
 #include <raymath.h>
-
-// Link incase I forget how it works
-// https://www.raylib.com/examples/shaders/loader.html?name=shaders_write_depth
-static RenderTexture2D LoadRenderTextureDepthTex(int width, int height)
-{
-    RenderTexture2D target = {0};
-    target.id = rlLoadFramebuffer();
-    if (target.id > 0)
-    {
-        rlEnableFramebuffer(target.id);
-
-        target.texture.id = rlLoadTexture(0, width, height, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
-        target.texture.width = width;
-        target.texture.height = height;
-        target.texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-        target.texture.mipmaps = 1;
-
-        target.depth.id = rlLoadTextureDepth(width, height, false);
-        target.depth.width = width;
-        target.depth.height = height;
-        target.depth.format = 19;
-        target.depth.mipmaps = 1;
-
-        rlFramebufferAttach(target.id, target.texture.id, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
-        rlFramebufferAttach(target.id, target.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
-
-        if (rlFramebufferComplete(target.id))
-            TRACELOG(LOG_INFO, "FBO: [ID %i] Framebuffer object created successfully", target.id);
-
-        rlDisableFramebuffer();
-    }
-    else
-        TRACELOG(LOG_WARNING, "FBO: Framebuffer object can not be created");
-
-    return target;
-}
-
-static void UnloadRenderTextureDepthTex(RenderTexture2D target)
-{
-    if (target.id > 0)
-    {
-        rlUnloadTexture(target.texture.id);
-        rlUnloadTexture(target.depth.id);
-        rlUnloadFramebuffer(target.id);
-    }
-}
 
 int main()
 {
@@ -93,10 +48,11 @@ int main()
     InputSystem inputSystem;
     GizmoController gizmoController(gizmoSystem);
 
-    // Register controller as observer
     inputSystem.RegisterObserver(&gizmoController);
 
-    RenderTexture2D sceneTarget = LoadRenderTextureDepthTex(screenWidth, screenHeight);
+    RaylibRenderer renderer;
+    renderer.Init(screenWidth, screenHeight);
+    Renderer::SetActive(&renderer);
 
     SetTargetFPS(60);
 
@@ -180,26 +136,20 @@ int main()
             ObjectUI::UpdateAndRenderGizmos(camera, selectedEntity, mouseRay, gizmoSystem);
         }
 
-        BeginTextureMode(sceneTarget);
+        renderer.BeginScene(camera);
         {
-            ClearBackground(RAYWHITE);
-
-            BeginMode3D(camera);
-            {
-                DrawGrid(50, 1.0f);
-                // Render components separately, as with many components this can bloat the file a lot
-                Renderer::RenderComponents(entities, selectedEntity);
-            }
-            EndMode3D();
+            renderer.DrawGrid(50, 1.0f);
+            // Render components separately, as with many components this can bloat the file a lot
+            Renderer::RenderComponents(entities, selectedEntity);
         }
-        EndTextureMode();
+        renderer.EndScene();
 
         BeginDrawing();
         {
             ClearBackground(RAYWHITE);
 
             DrawTextureRec(
-                sceneTarget.texture,
+                renderer.GetSceneTarget().texture,
                 Rectangle{0, 0, (float)screenWidth, (float)-screenHeight}, // Flip Y
                 Vector2{0, 0},
                 WHITE);
@@ -230,6 +180,6 @@ int main()
     }
 
     rlImGuiShutdown();
-    UnloadRenderTextureDepthTex(sceneTarget);
+    renderer.Shutdown();
     CloseWindow();
 }
