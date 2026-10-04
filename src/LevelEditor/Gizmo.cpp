@@ -1,5 +1,24 @@
 #include "gizmo.h"
 #include <float.h>
+#include "../Rendering/Renderer.h"
+
+static void GizmoDrawCylinder(Vector3 start, Vector3 end, float startRadius, float endRadius, int sides, Color color)
+{
+    IRenderer *renderer = Renderer::Get();
+    if (renderer)
+        renderer->DrawCylinder(start, end, startRadius, endRadius, sides, color);
+    else
+        DrawCylinderEx(start, end, startRadius, endRadius, sides, color);
+}
+
+static void GizmoDrawSphere(Vector3 pos, float radius, Color color)
+{
+    IRenderer *renderer = Renderer::Get();
+    if (renderer)
+        renderer->DrawSphere(pos, radius, color, false);
+    else
+        DrawSphere(pos, radius, color);
+}
 
 /**
  * @brief Default constructor for the GizmoSystem.
@@ -232,8 +251,8 @@ void GizmoSystem::DrawArrow(Vector3 start, Vector3 end, float radius, float head
     float currentRadius = highlighted ? radius * highlightScale : radius;
     float currentHeadRadius = highlighted ? headRadius * highlightScale : headRadius;
 
-    DrawCylinderEx(start, shaftEnd, currentRadius, currentRadius, 8, color);
-    DrawCylinderEx(shaftEnd, end, currentHeadRadius, 0.0f, 8, color);
+    GizmoDrawCylinder(start, shaftEnd, currentRadius, currentRadius, 8, color);
+    GizmoDrawCylinder(shaftEnd, end, currentHeadRadius, 0.0f, 8, color);
 }
 
 /**
@@ -277,7 +296,7 @@ void GizmoSystem::DrawRotationCircle(int axis, Color color, bool highlighted, Ca
 
         Vector3 p2 = Vector3Add(center, Vector3Add(Vector3Scale(right, cosf(angle2) * currentRadius), Vector3Scale(up, sinf(angle2) * currentRadius)));
 
-        DrawCylinderEx(p1, p2, currentThickness, currentThickness, 4, color);
+        GizmoDrawCylinder(p1, p2, currentThickness, currentThickness, 4, color);
     }
 }
 
@@ -315,9 +334,9 @@ void GizmoSystem::DrawScaleAxis(int axis, Color color, bool highlighted, Camera 
     float currentSphereRadius = (highlighted ? scaleBoxSize * highlightScale : scaleBoxSize) * 0.5f * gizmoScale;
 
     // Draw the axis line
-    DrawCylinderEx(*targetPosition, lineEnd, currentRadius, currentRadius, 8, color);
+    GizmoDrawCylinder(*targetPosition, lineEnd, currentRadius, currentRadius, 8, color);
 
-    DrawSphere(lineEnd, currentSphereRadius, color);
+    GizmoDrawSphere(lineEnd, currentSphereRadius, color);
 }
 
 void GizmoSystem::DrawUniformScaleCircle(Color color, bool highlighted, Camera camera)
@@ -328,7 +347,7 @@ void GizmoSystem::DrawUniformScaleCircle(Color color, bool highlighted, Camera c
     float gizmoScale = GetGizmoScale(camera);
     float orbRadius = uniformScaleCircleRadius * gizmoScale;
     float scale = highlighted ? highlightScale : 1.0f;
-    DrawSphere(*targetPosition, orbRadius * scale, color);
+    GizmoDrawSphere(*targetPosition, orbRadius * scale, color);
 }
 
 float GizmoSystem::GetGizmoScale(Camera camera) const
@@ -1002,7 +1021,7 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
                       arrowHeadLength * gizmoScale, arrowHeadRadius * gizmoScale, axisColors[i], isHighlighted);
         }
 
-        DrawSphere(*targetPosition, axisRadius * gizmoScale * 2.0f, WHITE);
+        GizmoDrawSphere(*targetPosition, axisRadius * gizmoScale * 2.0f, WHITE);
     }
     else if (mode == GizmoMode::ROTATION && targetPosition)
     {
@@ -1012,7 +1031,7 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
             DrawRotationCircle(i, axisColors[i], isHighlighted, camera);
         }
 
-        DrawSphere(*targetPosition, circleThickness * gizmoScale * 3.0f, WHITE);
+        GizmoDrawSphere(*targetPosition, circleThickness * gizmoScale * 3.0f, WHITE);
     }
     else if (mode == GizmoMode::SCALE && targetPosition)
     {
@@ -1025,7 +1044,7 @@ void GizmoSystem::Render(Camera camera, Ray mouseRay)
         bool isUniformHighlighted = (isDragging && selectedAxis == 3) || (!isDragging && hoveredAxis == 3);
         DrawUniformScaleCircle(WHITE, isUniformHighlighted, camera);
 
-        DrawSphere(*targetPosition, axisRadius * gizmoScale * 2.0f, WHITE);
+        GizmoDrawSphere(*targetPosition, axisRadius * gizmoScale * 2.0f, WHITE);
     }
 }
 
