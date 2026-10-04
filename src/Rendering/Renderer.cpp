@@ -2,8 +2,27 @@
 #include <rlgl.h>
 #include <raymath.h>
 
+IRenderer *Renderer::s_ActiveRenderer = nullptr;
+
+void Renderer::SetActive(IRenderer *renderer)
+{
+    s_ActiveRenderer = renderer;
+}
+
+IRenderer *Renderer::Get()
+{
+    return s_ActiveRenderer;
+}
+
 void Renderer::RenderComponents(const std::vector<GameEntity *> &entities, GameEntity *selectedEntity)
 {
+    if (s_ActiveRenderer)
+    {
+        s_ActiveRenderer->RenderEntities(entities, selectedEntity);
+        return;
+    }
+
+    // fallback
     for (auto entity : entities)
     {
         rlPushMatrix();
