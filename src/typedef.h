@@ -1,3 +1,5 @@
 #pragma once
+
 #include <vector>
-#include <raylib.h>
+#include "Core/Types.h"
+#include "Core/Math.h"
